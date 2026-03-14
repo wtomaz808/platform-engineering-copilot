@@ -19,10 +19,10 @@ volumes:
   platform-logs:
 
 services:
-  # SQL Server Database (Azure SQL Edge for ARM64/Apple Silicon compatibility)
+  # SQL Server 2022 Database (linux/amd64 - standard x64 host)
   sqlserver:
-    image: mcr.microsoft.com/azure-sql-edge:latest
-    platform: linux/arm64
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
     container_name: pec-sqlserver
     hostname: sqlserver
     restart: unless-stopped
@@ -37,11 +37,11 @@ services:
     networks:
       - platform-network
     healthcheck:
-      test: ["CMD-SHELL", "exit 0"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q 'SELECT 1' -No -C 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 45s
 
   # MCP Server (Multi-Agent Orchestrator)
   platform-mcp:
@@ -89,6 +89,12 @@ services:
       - GitSync__AutoSyncEnabled=${GIT_AUTO_SYNC_ENABLED:-true}
     ports:
       - "5100:5100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5100/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     volumes:
       - platform-logs:/app/logs
       - ./appsettings.json:/app/appsettings.json:ro
@@ -148,7 +154,7 @@ services:
       sqlserver:
         condition: service_healthy
       platform-mcp:
-        condition: service_started
+        condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:5050

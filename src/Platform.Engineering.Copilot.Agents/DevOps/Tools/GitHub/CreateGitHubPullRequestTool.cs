@@ -1,7 +1,8 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
-using System.ComponentModel;
+using Platform.Engineering.Copilot.Core.Configuration;
 using System.Text;
 using System.Text.Json;
 
@@ -17,43 +18,46 @@ public class CreateGitHubPullRequestTool : BaseTool
     private readonly GatewayOptions _gatewayOptions;
     private readonly DevOpsAgentOptions _devOpsOptions;
 
+    public override string Name => "create_github_pull_request";
+
+    public override string Description =>
+        "Creates a new GitHub pull request from a source branch to a target branch with optional reviewers and labels. " +
+        "Use this to submit code for review or merge feature branches.";
+
     public CreateGitHubPullRequestTool(
+        ILogger<CreateGitHubPullRequestTool> logger,
         IHttpClientFactory httpClientFactory,
-        GatewayOptions gatewayOptions,
-        DevOpsAgentOptions devOpsOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions)
+        : base(logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _gatewayOptions = gatewayOptions?.Value ?? throw new ArgumentNullException(nameof(gatewayOptions));
+        _devOpsOptions = devOpsOptions?.Value ?? throw new ArgumentNullException(nameof(devOpsOptions));
+
+        Parameters.Add(new ToolParameter("repository", "Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')", true));
+        Parameters.Add(new ToolParameter("title", "Pull request title", true));
+        Parameters.Add(new ToolParameter("body", "Pull request body/description in Markdown format", true));
+        Parameters.Add(new ToolParameter("sourceBranch", "Source branch name (the branch with your changes)", true));
+        Parameters.Add(new ToolParameter("targetBranch", "Target branch name to merge into (typically 'main' or 'develop')", true));
+        Parameters.Add(new ToolParameter("reviewers", "OPTIONAL: Comma-separated list of GitHub usernames to request as reviewers", false));
+        Parameters.Add(new ToolParameter("labels", "OPTIONAL: Comma-separated list of labels (e.g., 'enhancement,ready-for-review')", false));
+        Parameters.Add(new ToolParameter("draft", "OPTIONAL: Set to 'true' to create as draft pull request (default: 'false')", false));
     }
 
-    [KernelFunction("create_github_pull_request")]
-    [Description("Creates a new GitHub pull request from a source branch to a target branch with reviewers and labels")]
-    public async Task<string> ExecuteAsync(
-        [Description("Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')")]
-        string repository,
-        
-        [Description("Pull request title")]
-        string title,
-        
-        [Description("Pull request body/description in Markdown format")]
-        string body,
-        
-        [Description("Source branch name (the branch with your changes)")]
-        string sourceBranch,
-        
-        [Description("Target branch name (the branch you want to merge into, typically 'main' or 'develop')")]
-        string targetBranch,
-        
-        [Description("OPTIONAL: Comma-separated list of GitHub usernames to request as reviewers")]
-        string? reviewers = null,
-        
-        [Description("OPTIONAL: Comma-separated list of labels to add (e.g., 'enhancement,ready-for-review')")]
-        string? labels = null,
-        
-        [Description("OPTIONAL: Set to 'true' to create as draft pull request")]
-        string? draft = "false")
+    public override async Task<string> ExecuteAsync(
+        IDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
     {
+        var repository = arguments.TryGetValue("repository", out var repoVal) ? repoVal?.ToString() ?? "" : "";
+        var title = arguments.TryGetValue("title", out var titleVal) ? titleVal?.ToString() ?? "" : "";
+        var body = arguments.TryGetValue("body", out var bodyVal) ? bodyVal?.ToString() ?? "" : "";
+        var sourceBranch = arguments.TryGetValue("sourceBranch", out var srcVal) ? srcVal?.ToString() ?? "" : "";
+        var targetBranch = arguments.TryGetValue("targetBranch", out var tgtVal) ? tgtVal?.ToString() ?? "" : "";
+        var reviewers = arguments.TryGetValue("reviewers", out var revVal) ? revVal?.ToString() : null;
+        var labels = arguments.TryGetValue("labels", out var labelsVal) ? labelsVal?.ToString() : null;
+        var draft = arguments.TryGetValue("draft", out var draftVal) ? draftVal?.ToString() : "false";
+
         try
         {
             // Validate repository format

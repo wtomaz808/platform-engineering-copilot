@@ -14,6 +14,7 @@ This document provides natural language test queries for each specialized agent.
 5. [Cost Management Agent](#5-cost-management-agent)
 6. [KnowledgeBase Agent](#6-knowledgebase-agent)
 7. [Environment Agent](#7-environment-agent)
+8. [DevOps Agent](#8-devops-agent)
 
 ---
 
@@ -542,6 +543,122 @@ This document provides natural language test queries for each specialized agent.
 
 ---
 
+## 8. DevOps Agent
+
+**Purpose**: GitHub repository management, issue and pull request tracking, GitHub Actions CI/CD workflows, and team management.
+
+**Routing Keywords**: "github", "repository", "repo", "pull request", "issue", "workflow", "ci/cd", "pipeline", "team"
+
+### Test Case 8.1: Create Repository
+| Field | Value |
+|-------|-------|
+| **Query** | `Create a new private GitHub repository called my-service` |
+| **Alternative Queries** | `Create a repo named my-service`, `Set up a new GitHub repo` |
+| **Command** | `@platform /devops Create a private repo called my-service` |
+| **Tool Called** | `create_github_repository` |
+| **Parameters** | `name: "my-service"`, `private: true`, `organization: "<org>"` |
+| **Expected Result** | ✅ Repository created with URL, clone link, and default branch |
+
+### Test Case 8.2: List Repositories
+| Field | Value |
+|-------|-------|
+| **Query** | `List all repositories in my GitHub org` |
+| **Alternative Queries** | `Show me the repos in azurenoops`, `What repos do we have?` |
+| **Tool Called** | `list_github_repositories` |
+| **Parameters** | `organization: "azurenoops"` |
+| **Expected Result** | Table of repositories with name, visibility, last updated, URL |
+
+### Test Case 8.3: Update Repository
+| Field | Value |
+|-------|-------|
+| **Query** | `Make my-service repository private and add a description` |
+| **Tool Called** | `update_github_repository` |
+| **Parameters** | `owner: "<org>"`, `repo: "my-service"`, `private: true`, `description: "..."` |
+| **Expected Result** | ✅ Repository updated with changed fields |
+
+### Test Case 8.4: Delete Repository
+| Field | Value |
+|-------|-------|
+| **Query** | `Delete the test-repo repository` |
+| **Tool Called** | `delete_github_repository` |
+| **Parameters** | `owner: "<org>"`, `repo: "test-repo"` |
+| **Expected Result** | ✅ Repository deleted confirmation |
+| **Notes** | Requires `delete_repo` OAuth scope |
+
+### Test Case 8.5: Create GitHub Issue
+| Field | Value |
+|-------|-------|
+| **Query** | `Create an issue in my-service to track the API timeout bug` |
+| **Alternative Queries** | `Open a GitHub issue for tracking the login bug`, `File an issue in my repo` |
+| **Tool Called** | `create_github_issue` |
+| **Parameters** | `owner: "<org>"`, `repo: "my-service"`, `title: "API timeout bug"`, `body: "..."` |
+| **Expected Result** | ✅ Issue created with number, URL |
+
+### Test Case 8.6: List GitHub Issues
+| Field | Value |
+|-------|-------|
+| **Query** | `List open issues in my-service` |
+| **Alternative Queries** | `Show all open issues`, `What issues are open in my repo?` |
+| **Tool Called** | `list_github_issues` |
+| **Parameters** | `owner: "<org>"`, `repo: "my-service"`, `state: "open"` |
+| **Expected Result** | List of issues with number, title, assignee, labels, created date |
+
+### Test Case 8.7: Create Pull Request
+| Field | Value |
+|-------|-------|
+| **Query** | `Open a pull request from feature/login to main in my-service` |
+| **Alternative Queries** | `Create a PR to merge my changes`, `Submit a pull request for code review` |
+| **Tool Called** | `create_github_pull_request` |
+| **Parameters** | `owner: "<org>"`, `repo: "my-service"`, `title: "..."`, `head: "feature/login"`, `base: "main"` |
+| **Expected Result** | ✅ Pull request created with number, URL, review link |
+
+### Test Case 8.8: List Pull Requests
+| Field | Value |
+|-------|-------|
+| **Query** | `List open pull requests in my-service` |
+| **Alternative Queries** | `Show me all PRs`, `What pull requests are waiting for review?` |
+| **Tool Called** | `list_github_pull_requests` |
+| **Parameters** | `owner: "<org>"`, `repo: "my-service"`, `state: "open"` |
+| **Expected Result** | List of PRs with number, title, author, branch, checks status |
+
+### Test Case 8.9: Trigger GitHub Action Workflow
+| Field | Value |
+|-------|-------|
+| **Query** | `Trigger the deploy workflow in my-service for the main branch` |
+| **Alternative Queries** | `Run the CI/CD pipeline`, `Dispatch the build workflow`, `Kick off deployment` |
+| **Tool Called** | `trigger_github_action` |
+| **Parameters** | `owner: "<org>"`, `repo: "my-service"`, `workflow_id: "deploy.yml"`, `ref: "main"` |
+| **Expected Result** | ✅ Workflow dispatch accepted, run URL returned |
+
+### Test Case 8.10: List GitHub Action Runs
+| Field | Value |
+|-------|-------|
+| **Query** | `List recent workflow runs in my-service` |
+| **Alternative Queries** | `Show CI/CD history`, `What action runs have there been recently?`, `Check pipeline status` |
+| **Tool Called** | `list_github_action_runs` |
+| **Parameters** | `owner: "<org>"`, `repo: "my-service"` |
+| **Expected Result** | List of workflow runs with name, status, conclusion, trigger, started time |
+
+### Test Case 8.11: Add Team Member
+| Field | Value |
+|-------|-------|
+| **Query** | `Add john.doe to the platform-engineers team in azurenoops` |
+| **Alternative Queries** | `Add a member to the team`, `Give jane access to the devops team` |
+| **Tool Called** | `add_github_team_member` |
+| **Parameters** | `org: "azurenoops"`, `team_slug: "platform-engineers"`, `username: "john.doe"`, `role: "member"` |
+| **Expected Result** | ✅ User added to team with membership URL |
+
+### Test Case 8.12: List GitHub Teams
+| Field | Value |
+|-------|-------|
+| **Query** | `List all teams in the azurenoops GitHub organization` |
+| **Alternative Queries** | `Show me the GitHub teams`, `What teams exist in our org?` |
+| **Tool Called** | `list_github_teams` |
+| **Parameters** | `org: "azurenoops"` |
+| **Expected Result** | List of teams with name, slug, privacy, member count, repository count |
+
+---
+
 ## Multi-Agent Workflows
 
 These test cases involve the orchestrator routing to multiple agents.
@@ -636,6 +753,14 @@ For each agent, verify:
 | "create environment" | Environment Agent |
 | "detect drift" | Environment Agent |
 | "clone environment" | Environment Agent |
+| "create a repository" | DevOps Agent |
+| "list repos in my org" | DevOps Agent |
+| "create an issue" | DevOps Agent |
+| "open a pull request" | DevOps Agent |
+| "trigger a workflow" | DevOps Agent |
+| "list ci/cd runs" | DevOps Agent |
+| "add team member" | DevOps Agent |
+| "list github teams" | DevOps Agent |
 
 ---
 

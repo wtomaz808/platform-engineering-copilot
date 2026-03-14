@@ -74,19 +74,14 @@ public class ApprovalWorkflowEntity
     [MaxLength(1000)]
     public string? RejectionReason { get; set; }
 
-    // JSON serialized data - using nvarchar(max) for SQL Server compatibility
-    [Column(TypeName = "nvarchar(max)")]
+    // JSON serialized data (large text fields - no explicit TypeName so EF Core picks the right type per provider)
     public string RequiredApproversJson { get; set; } = "[]";
 
-    [Column(TypeName = "nvarchar(max)")]
     public string PolicyViolationsJson { get; set; } = "[]";
 
-    [Column(TypeName = "nvarchar(max)")]
     public string OriginalToolCallJson { get; set; } = "{}";
 
-    [Column(TypeName = "nvarchar(max)")]
     public string DecisionsJson { get; set; } = "[]";
 
-    [Column(TypeName = "nvarchar(max)")]
     public string RequestPayload { get; set; } = string.Empty;
 }

@@ -20,6 +20,7 @@ The Platform Engineering Copilot uses **7 specialized AI agents** built on the B
 | [Environment](#environment-agent) | `environment` | 10 | Template lifecycle, drift detection |
 | [Knowledge Base](#knowledge-base-agent) | `knowledgebase` | 8 | Compliance education, NIST/STIG |
 | [Configuration](#configuration-agent) | `configuration` | 1 | Subscription settings |
+| [DevOps](#devops-agent) | `devops` | 10 | GitHub repos, issues, PRs, Actions, teams |
 
 ### BaseAgent Pattern
 
@@ -384,6 +385,64 @@ The `PlatformSelectionStrategy` routes user requests to the appropriate agent ba
 | environment, template, clone, scale, drift | Environment Agent |
 | explain, what is, STIG, RMF, impact level, FedRAMP guidance | Knowledge Base Agent |
 | configure, subscription, settings | Configuration Agent |
+| github, repository, repo, pull request, issue, workflow, ci/cd, pipeline, team | DevOps Agent |
+
+---
+
+## DevOps Agent
+
+**ID:** `devops`  
+**Purpose:** GitHub repository management, issue and pull request tracking, GitHub Actions CI/CD workflows, and organization team management.
+
+### Tools (10)
+
+| Tool | Name | Description |
+|------|------|-------------|
+| Create Repository | `create_github_repository` | Create a new GitHub repository in an organization |
+| List Repositories | `list_github_repositories` | List repositories for a GitHub organization |
+| Update Repository | `update_github_repository` | Update repository settings (visibility, description, topics) |
+| Delete Repository | `delete_github_repository` | Delete a GitHub repository |
+| Create Issue | `create_github_issue` | Create a new issue in a repository |
+| List Issues | `list_github_issues` | List issues with filtering by state, labels, assignee |
+| Create Pull Request | `create_github_pull_request` | Open a pull request between branches |
+| List Pull Requests | `list_github_pull_requests` | List pull requests with state filtering |
+| Trigger Action | `trigger_github_action` | Dispatch a GitHub Actions workflow run |
+| List Action Runs | `list_github_action_runs` | List recent workflow run history |
+| Add Team Member | `add_github_team_member` | Add a user to a GitHub organization team |
+| List Teams | `list_github_teams` | List teams in a GitHub organization |
+
+### Example Queries
+
+```
+"Create a private GitHub repository called my-service"
+"List all repos in the azurenoops organization"
+"Open a pull request from feature/login to main"
+"List open issues in my-service"
+"Trigger the deploy workflow on the main branch"
+"Add john.doe to the platform-engineers team"
+"List all teams in azurenoops"
+```
+
+### Configuration
+
+```json
+{
+  "DevOpsAgent": {
+    "Enabled": true,
+    "Temperature": 0.3,
+    "MaxTokens": 4000,
+    "GitHub": {
+      "Enabled": true,
+      "DefaultOrg": "azurenoops"
+    },
+    "AzureDevOps": {
+      "Enabled": false
+    }
+  }
+}
+```
+
+> **Note:** GitHub access requires a Personal Access Token (PAT) with appropriate scopes configured in `GITHUB_TOKEN` environment variable or via Key Vault.
 
 ---
 

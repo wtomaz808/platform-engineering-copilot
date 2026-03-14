@@ -1,8 +1,8 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
 using Platform.Engineering.Copilot.Core.Configuration;
-using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 
@@ -18,31 +18,38 @@ public class TriggerGitHubActionTool : BaseTool
     private readonly GatewayOptions _gatewayOptions;
     private readonly DevOpsAgentOptions _devOpsOptions;
 
+    public override string Name => "trigger_github_action";
+
+    public override string Description =>
+        "Manually triggers a GitHub Actions workflow run with optional input parameters. " +
+        "Use this to kick off CI/CD pipelines, deployment workflows, or any workflow_dispatch trigger.";
+
     public TriggerGitHubActionTool(
+        ILogger<TriggerGitHubActionTool> logger,
         IHttpClientFactory httpClientFactory,
-        GatewayOptions gatewayOptions,
-        DevOpsAgentOptions devOpsOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions)
+        : base(logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _gatewayOptions = gatewayOptions?.Value ?? throw new ArgumentNullException(nameof(gatewayOptions));
+        _devOpsOptions = devOpsOptions?.Value ?? throw new ArgumentNullException(nameof(devOpsOptions));
+
+        Parameters.Add(new ToolParameter("repository", "Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')", true));
+        Parameters.Add(new ToolParameter("workflowId", "Workflow ID or filename (e.g., 'deploy.yml' or numeric workflow ID)", true));
+        Parameters.Add(new ToolParameter("ref", "Branch or tag ref to run the workflow on (e.g., 'main', 'refs/heads/feature', 'refs/tags/v1.0')", true));
+        Parameters.Add(new ToolParameter("inputs", "OPTIONAL: JSON string of input parameters for the workflow (e.g., '{\"environment\":\"production\"}')", false));
     }
 
-    [KernelFunction("trigger_github_action")]
-    [Description("Manually triggers a GitHub Actions workflow run with optional input parameters")]
-    public async Task<string> ExecuteAsync(
-        [Description("Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')")]
-        string repository,
-        
-        [Description("Workflow ID or filename (e.g., 'deploy.yml' or workflow ID number)")]
-        string workflowId,
-        
-        [Description("Branch or tag ref to run the workflow on (e.g., 'main', 'refs/heads/feature', 'refs/tags/v1.0')")]
-        string ref_,
-        
-        [Description("OPTIONAL: JSON string of input parameters for the workflow (e.g., '{\"environment\":\"production\",\"version\":\"1.0.0\"}')")] 
-        string? inputs = null)
+    public override async Task<string> ExecuteAsync(
+        IDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
     {
+        var repository = arguments.TryGetValue("repository", out var repoVal) ? repoVal?.ToString() ?? "" : "";
+        var workflowId = arguments.TryGetValue("workflowId", out var wfVal) ? wfVal?.ToString() ?? "" : "";
+        var ref_ = arguments.TryGetValue("ref", out var refVal) ? refVal?.ToString() ?? "" : "";
+        var inputs = arguments.TryGetValue("inputs", out var inputsVal) ? inputsVal?.ToString() : null;
+
         try
         {
             // Validate repository format

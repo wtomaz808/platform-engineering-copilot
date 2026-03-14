@@ -1,7 +1,8 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
-using System.ComponentModel;
+using Platform.Engineering.Copilot.Core.Configuration;
 using System.Text.Json;
 using System.Web;
 
@@ -17,25 +18,34 @@ public class ListGitHubTeamsTool : BaseTool
     private readonly GatewayOptions _gatewayOptions;
     private readonly DevOpsAgentOptions _devOpsOptions;
 
+    public override string Name => "list_github_teams";
+
+    public override string Description =>
+        "Lists teams in a GitHub organization with member counts, permissions, and repository access. " +
+        "Use this to view team structure, check permissions, or find the right team for onboarding.";
+
     public ListGitHubTeamsTool(
+        ILogger<ListGitHubTeamsTool> logger,
         IHttpClientFactory httpClientFactory,
-        GatewayOptions gatewayOptions,
-        DevOpsAgentOptions devOpsOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions)
+        : base(logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _gatewayOptions = gatewayOptions?.Value ?? throw new ArgumentNullException(nameof(gatewayOptions));
+        _devOpsOptions = devOpsOptions?.Value ?? throw new ArgumentNullException(nameof(devOpsOptions));
+
+        Parameters.Add(new ToolParameter("organization", "Organization name (e.g., 'azure', 'microsoft')", true));
+        Parameters.Add(new ToolParameter("maxResults", "OPTIONAL: Maximum number of teams to return (default: 30, max: 100)", false));
     }
 
-    [KernelFunction("list_github_teams")]
-    [Description("Lists teams in a GitHub organization with member counts, permissions, and repository access")]
-    public async Task<string> ExecuteAsync(
-        [Description("Organization name (e.g., 'azure', 'microsoft')")]
-        string organization,
-        
-        [Description("OPTIONAL: Maximum number of teams to return (default: 30, max: 100)")]
-        int? maxResults = 30)
+    public override async Task<string> ExecuteAsync(
+        IDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
     {
+        var organization = arguments.TryGetValue("organization", out var orgVal) ? orgVal?.ToString() ?? "" : "";
+        int? maxResults = arguments.TryGetValue("maxResults", out var maxVal) && int.TryParse(maxVal?.ToString(), out var maxInt) ? maxInt : 30;
+
         try
         {
             // Validate organization

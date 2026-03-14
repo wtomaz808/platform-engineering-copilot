@@ -1,8 +1,8 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
 using Platform.Engineering.Copilot.Core.Configuration;
-using System.ComponentModel;
 using System.Text.Json;
 
 namespace Platform.Engineering.Copilot.Agents.DevOps.Tools.GitHub;
@@ -18,25 +18,34 @@ public class DeleteGitHubRepositoryTool : BaseTool
     private readonly GatewayOptions _gatewayOptions;
     private readonly DevOpsAgentOptions _devOpsOptions;
 
+    public override string Name => "delete_github_repository";
+
+    public override string Description =>
+        "Permanently deletes a GitHub repository. WARNING: This action cannot be undone! Requires explicit confirmation. " +
+        "Use with extreme caution. Confirmation parameter must exactly match the 'owner/repo' to proceed.";
+
     public DeleteGitHubRepositoryTool(
+        ILogger<DeleteGitHubRepositoryTool> logger,
         IHttpClientFactory httpClientFactory,
-        GatewayOptions gatewayOptions,
-        DevOpsAgentOptions devOpsOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions)
+        : base(logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _gatewayOptions = gatewayOptions?.Value ?? throw new ArgumentNullException(nameof(gatewayOptions));
+        _devOpsOptions = devOpsOptions?.Value ?? throw new ArgumentNullException(nameof(devOpsOptions));
+
+        Parameters.Add(new ToolParameter("repository", "Repository identifier in format 'owner/repo' (e.g., 'azure/temp-repo')", true));
+        Parameters.Add(new ToolParameter("confirmation", "Confirmation - must exactly match the full repository name 'owner/repo' to proceed", true));
     }
 
-    [KernelFunction("delete_github_repository")]
-    [Description("Permanently deletes a GitHub repository. WARNING: This action cannot be undone! Use with extreme caution.")]
-    public async Task<string> ExecuteAsync(
-        [Description("Repository identifier in format 'owner/repo' (e.g., 'azure/temp-repo')")]
-        string repository,
-        
-        [Description("Confirmation - must exactly match the full repository name 'owner/repo' to proceed")]
-        string confirmation)
+    public override async Task<string> ExecuteAsync(
+        IDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
     {
+        var repository = arguments.TryGetValue("repository", out var repoVal) ? repoVal?.ToString() ?? "" : "";
+        var confirmation = arguments.TryGetValue("confirmation", out var confVal) ? confVal?.ToString() ?? "" : "";
+
         try
         {
             // Validate repository format

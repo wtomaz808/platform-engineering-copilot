@@ -1,8 +1,8 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
 using Platform.Engineering.Copilot.Core.Configuration;
-using System.ComponentModel;
 using System.Text.Json;
 using System.Web;
 
@@ -18,46 +18,48 @@ public class ListGitHubIssuesTool : BaseTool
     private readonly GatewayOptions _gatewayOptions;
     private readonly DevOpsAgentOptions _devOpsOptions;
 
+    public override string Name => "list_github_issues";
+
+    public override string Description =>
+        "Lists GitHub issues with filtering by state, labels, assignees, creator, and sorting options. " +
+        "Use this to find open bugs, feature requests, or track work items in a repository.";
+
     public ListGitHubIssuesTool(
+        ILogger<ListGitHubIssuesTool> logger,
         IHttpClientFactory httpClientFactory,
-        GatewayOptions gatewayOptions,
-        DevOpsAgentOptions devOpsOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions)
+        : base(logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _gatewayOptions = gatewayOptions?.Value ?? throw new ArgumentNullException(nameof(gatewayOptions));
+        _devOpsOptions = devOpsOptions?.Value ?? throw new ArgumentNullException(nameof(devOpsOptions));
+
+        Parameters.Add(new ToolParameter("repository", "Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')", true));
+        Parameters.Add(new ToolParameter("state", "OPTIONAL: Filter by issue state - 'open', 'closed', or 'all' (default: 'open')", false));
+        Parameters.Add(new ToolParameter("labels", "OPTIONAL: Comma-separated list of labels to filter by", false));
+        Parameters.Add(new ToolParameter("assignee", "OPTIONAL: Filter by assignee username (use 'none' for unassigned, '*' for any assigned)", false));
+        Parameters.Add(new ToolParameter("creator", "OPTIONAL: Filter by creator username", false));
+        Parameters.Add(new ToolParameter("mentioned", "OPTIONAL: Filter by mentioned username", false));
+        Parameters.Add(new ToolParameter("sort", "OPTIONAL: Sort by 'created', 'updated', or 'comments' (default: 'created')", false));
+        Parameters.Add(new ToolParameter("direction", "OPTIONAL: Sort direction - 'asc' or 'desc' (default: 'desc')", false));
+        Parameters.Add(new ToolParameter("maxResults", "OPTIONAL: Maximum number of issues to return (default: 30, max: 100)", false));
     }
 
-    [KernelFunction("list_github_issues")]
-    [Description("Lists GitHub issues with filtering by state, labels, assignees, creator, and sorting options")]
-    public async Task<string> ExecuteAsync(
-        [Description("Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')")]
-        string repository,
-        
-        [Description("OPTIONAL: Filter by issue state - 'open', 'closed', or 'all' (default: 'open')")]
-        string? state = "open",
-        
-        [Description("OPTIONAL: Comma-separated list of labels to filter by (e.g., 'bug,high-priority')")]
-        string? labels = null,
-        
-        [Description("OPTIONAL: Filter by assignee username (use 'none' for unassigned, '*' for any assigned)")]
-        string? assignee = null,
-        
-        [Description("OPTIONAL: Filter by creator username")]
-        string? creator = null,
-        
-        [Description("OPTIONAL: Filter by mentioned username")]
-        string? mentioned = null,
-        
-        [Description("OPTIONAL: Sort by 'created', 'updated', or 'comments' (default: 'created')")]
-        string? sort = "created",
-        
-        [Description("OPTIONAL: Sort direction - 'asc' or 'desc' (default: 'desc')")]
-        string? direction = "desc",
-        
-        [Description("OPTIONAL: Maximum number of issues to return (default: 30, max: 100)")]
-        int? maxResults = 30)
+    public override async Task<string> ExecuteAsync(
+        IDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
     {
+        var repository = arguments.TryGetValue("repository", out var repoVal) ? repoVal?.ToString() ?? "" : "";
+        var state = arguments.TryGetValue("state", out var stateVal) ? stateVal?.ToString() : "open";
+        var labels = arguments.TryGetValue("labels", out var labelsVal) ? labelsVal?.ToString() : null;
+        var assignee = arguments.TryGetValue("assignee", out var assigneeVal) ? assigneeVal?.ToString() : null;
+        var creator = arguments.TryGetValue("creator", out var creatorVal) ? creatorVal?.ToString() : null;
+        var mentioned = arguments.TryGetValue("mentioned", out var mentionedVal) ? mentionedVal?.ToString() : null;
+        var sort = arguments.TryGetValue("sort", out var sortVal) ? sortVal?.ToString() : "created";
+        var direction = arguments.TryGetValue("direction", out var dirVal) ? dirVal?.ToString() : "desc";
+        int? maxResults = arguments.TryGetValue("maxResults", out var maxVal) && int.TryParse(maxVal?.ToString(), out var maxInt) ? maxInt : 30;
+
         try
         {
             // Validate repository format

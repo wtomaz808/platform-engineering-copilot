@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Bot, User, Zap, CheckCircle, Clock, TrendingUp, Lightbulb } from 'lucide-react';
+import { Send, Paperclip, Bot, User, Zap, CheckCircle, Clock, TrendingUp, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -25,11 +25,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [expandedToolResults, setExpandedToolResults] = useState<Set<string>>(new Set());
+  const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { state } = useChat();
   const connectionStatus = state.isConnected ? 'Connected' : 'Disconnected';
+
+  const models = [
+    { id: 'gpt-4o', label: 'GPT-4o' },
+    { id: 'gpt-4.1', label: 'GPT-4.1' },
+  ];
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -100,11 +107,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   if (!conversation) {
     return (
-      <div className="flex flex-col h-full bg-white">
+      <div className="flex flex-col h-full bg-white dark:bg-gray-900">
         <div className="flex flex-col items-center justify-center flex-1 text-center p-8">
           <div className="text-6xl mb-6">💬</div>
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Welcome to Platform Engineering Copilot</h2>
-          <p className="text-gray-600 max-w-md">
+          <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">Welcome to PE Copilot</h2>
+          <p className="text-gray-600 dark:text-gray-400 max-w-md">
             Select a conversation from the sidebar or start a new one to begin chatting.
           </p>
         </div>
@@ -115,8 +122,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const canSend = inputValue.trim() || attachments.length > 0;
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      <div className="px-4 py-2 text-xs border-b border-gray-200 bg-gray-50">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-900">
+      <div className="px-4 py-2 text-xs border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         {connectionStatus === 'Connected' ? (
           <span className="text-green-600">✅ Real-time features active (SignalR connected)</span>
         ) : (
@@ -124,26 +131,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
       </div>
 
-      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-        <h2 className="text-xl font-semibold text-gray-800">{conversation.title || 'New Conversation'}</h2>
+      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{conversation.title || 'New Conversation'}</h2>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 dark:bg-gray-900 custom-scrollbar">
         {messages.map((message) => (
           <div key={message.id} className={`flex ${message.role === MessageRole.User ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] ${message.role === MessageRole.User ? 'bg-blue-600 text-white' : 'bg-white text-gray-800'} rounded-lg p-4 shadow-sm border ${message.role === MessageRole.User ? 'border-blue-600' : 'border-gray-200'}`}>
+            <div className={`max-w-[80%] ${message.role === MessageRole.User ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100'} rounded-lg p-4 shadow-sm border ${message.role === MessageRole.User ? 'border-blue-600' : 'border-gray-200 dark:border-gray-700'}`}>
               <div className="flex items-center gap-2 mb-2">
                 {message.role === MessageRole.User ? (
                   <User size={16} className={message.role === MessageRole.User ? "text-blue-100" : "text-gray-600"} />
                 ) : (
                   <Bot size={16} className="text-blue-600" />
                 )}
-                <span className={`text-sm font-medium ${message.role === MessageRole.User ? 'text-blue-100' : 'text-gray-700'}`}>
-                  {message.role === MessageRole.User ? 'You' : 'Assistant'}
+                <span className={`text-sm font-medium ${message.role === MessageRole.User ? 'text-blue-100' : 'text-gray-700 dark:text-gray-300'}`}>
+                  {message.role === MessageRole.User ? 'You' : 'PE Copilot'}
                 </span>
               </div>
               
-              <div className={`text-sm leading-relaxed ${message.role === MessageRole.User ? 'text-white' : 'text-gray-800'} markdown-content`}>
+              <div className={`text-sm leading-relaxed ${message.role === MessageRole.User ? 'text-white' : 'text-gray-800 dark:text-gray-100'} markdown-content`}>
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
@@ -289,7 +296,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   {message.metadata.suggestions && message.metadata.suggestions.length > 0 && (
                     <div className="space-y-2 pt-2">
                       <div className="flex items-center gap-2 text-xs text-gray-600">
-                        <Lightbulb size={12} />
+                        <Zap size={12} />
                         <span className="font-medium">Suggested Next Steps:</span>
                       </div>
                       <div className="grid gap-2">
@@ -342,7 +349,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {isTyping && (
           <div className="flex justify-start">
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200 flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700 flex items-center gap-2">
               <Bot size={16} className="text-blue-600" />
               <div className="flex gap-1">
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
@@ -356,7 +363,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-white border-t border-gray-200">
+      <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
         {attachments.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
             {attachments.map((file, index) => (
@@ -374,20 +381,52 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         )}
 
-                <form onSubmit={handleSubmit} className="flex items-end gap-3">
+        {/* Model selector + input row */}
+        <div className="flex items-center gap-2 mb-2">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowModelPicker(p => !p)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 transition-colors"
+            >
+              <Bot size={13} />
+              {models.find(m => m.id === selectedModel)?.label ?? selectedModel}
+              <ChevronDown size={13} className={`transition-transform ${showModelPicker ? 'rotate-180' : ''}`} />
+            </button>
+            {showModelPicker && (
+              <div className="absolute bottom-full left-0 mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-10">
+                {models.map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => { setSelectedModel(m.id); setShowModelPicker(false); }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                      selectedModel === m.id ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex items-end gap-3">
           <input
             type="file"
             ref={fileInputRef}
             onChange={handleFileSelect}
             multiple
+            accept=".pdf,.txt,.md,.json,.yaml,.yml,.csv,.png,.jpg,.jpeg,.docx"
             className="hidden"
           />
-          
+
           <button
             type="button"
-            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 text-gray-600 hover:text-gray-800"
+            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition-colors duration-200 text-gray-600 dark:text-gray-400"
             onClick={() => fileInputRef.current?.click()}
-            title="Attach files"
+            title="Attach files (PDF, TXT, images, etc.)"
           >
             <Paperclip size={18} />
           </button>
@@ -398,8 +437,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Type your message here..."
-              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-800 placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Message PE Copilot..."
+              className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={loading}
               rows={1}
             />
@@ -408,12 +447,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button
             type="submit"
             className={`p-2 rounded-lg transition-all duration-200 ${
-              canSend && !loading 
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              canSend && !loading
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
             }`}
             disabled={!canSend || loading}
-            title="Send message"
+            title="Send message (Enter)"
           >
             <Send size={18} />
           </button>

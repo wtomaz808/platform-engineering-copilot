@@ -1,8 +1,8 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
 using Platform.Engineering.Copilot.Core.Configuration;
-using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 
@@ -18,37 +18,42 @@ public class CreateGitHubIssueTool : BaseTool
     private readonly GatewayOptions _gatewayOptions;
     private readonly DevOpsAgentOptions _devOpsOptions;
 
+    public override string Name => "create_github_issue";
+
+    public override string Description =>
+        "Creates a new GitHub issue with title, body, labels, assignees, and optional milestone. " +
+        "Use this to track bugs, feature requests, or tasks in a GitHub repository.";
+
     public CreateGitHubIssueTool(
+        ILogger<CreateGitHubIssueTool> logger,
         IHttpClientFactory httpClientFactory,
-        GatewayOptions gatewayOptions,
-        DevOpsAgentOptions devOpsOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions)
+        : base(logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _gatewayOptions = gatewayOptions?.Value ?? throw new ArgumentNullException(nameof(gatewayOptions));
+        _devOpsOptions = devOpsOptions?.Value ?? throw new ArgumentNullException(nameof(devOpsOptions));
+
+        Parameters.Add(new ToolParameter("repository", "Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')", true));
+        Parameters.Add(new ToolParameter("title", "Issue title", true));
+        Parameters.Add(new ToolParameter("body", "Issue body/description in Markdown format", true));
+        Parameters.Add(new ToolParameter("labels", "OPTIONAL: Comma-separated list of labels (e.g., 'bug,high-priority,security')", false));
+        Parameters.Add(new ToolParameter("assignees", "OPTIONAL: Comma-separated list of GitHub usernames to assign", false));
+        Parameters.Add(new ToolParameter("milestone", "OPTIONAL: Milestone number to associate with this issue", false));
     }
 
-    [KernelFunction("create_github_issue")]
-    [Description("Creates a new GitHub issue with title, body, labels, assignees, and optional milestone")]
-    public async Task<string> ExecuteAsync(
-        [Description("Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')")]
-        string repository,
-        
-        [Description("Issue title")]
-        string title,
-        
-        [Description("Issue body/description in Markdown format")]
-        string body,
-        
-        [Description("OPTIONAL: Comma-separated list of labels (e.g., 'bug,high-priority,security')")]
-        string? labels = null,
-        
-        [Description("OPTIONAL: Comma-separated list of GitHub usernames to assign (e.g., 'octocat,hubot')")]
-        string? assignees = null,
-        
-        [Description("OPTIONAL: Milestone number to associate with this issue")]
-        int? milestone = null)
+    public override async Task<string> ExecuteAsync(
+        IDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
     {
+        var repository = arguments.TryGetValue("repository", out var repoVal) ? repoVal?.ToString() ?? "" : "";
+        var title = arguments.TryGetValue("title", out var titleVal) ? titleVal?.ToString() ?? "" : "";
+        var body = arguments.TryGetValue("body", out var bodyVal) ? bodyVal?.ToString() ?? "" : "";
+        var labels = arguments.TryGetValue("labels", out var labelsVal) ? labelsVal?.ToString() : null;
+        var assignees = arguments.TryGetValue("assignees", out var assigneesVal) ? assigneesVal?.ToString() : null;
+        int? milestone = arguments.TryGetValue("milestone", out var msVal) && int.TryParse(msVal?.ToString(), out var msInt) ? msInt : null;
+
         try
         {
             // Validate repository format

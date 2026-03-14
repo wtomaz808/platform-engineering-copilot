@@ -75,36 +75,45 @@ class Program
             logging.AddSerilog();
         });
 
-        // Register database context - use SQL Server connection from config or env variable
+        // Register database context - respects DatabaseProvider config ("Sqlite" or "SqlServer")
         var configuration = builder.Configuration;
-        var connectionString = configuration.GetConnectionString("DefaultConnection") 
-            ?? configuration.GetConnectionString("SqlServerConnection");
-        
-        Log.Information("🔧 Database connection string lookup:");
-        Log.Information("   - DefaultConnection: {Exists}", configuration.GetConnectionString("DefaultConnection") != null ? "Found" : "Not found");
-        Log.Information("   - SqlServerConnection: {Exists}", configuration.GetConnectionString("SqlServerConnection") != null ? "Found" : "Not found");
-        
-        if (!string.IsNullOrEmpty(connectionString))
+        var databaseProvider = configuration["DatabaseProvider"] ?? "Sqlite";
+        var defaultConnectionString = configuration.GetConnectionString("DefaultConnection");
+        var sqlServerConnectionString = configuration.GetConnectionString("SqlServerConnection");
+
+        Log.Information("🔧 Database configuration: Provider={Provider}", databaseProvider);
+        Log.Information("   - DefaultConnection: {Exists}", defaultConnectionString != null ? "Found" : "Not found");
+        Log.Information("   - SqlServerConnection: {Exists}", sqlServerConnectionString != null ? "Found" : "Not found");
+
+        if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
         {
-            Log.Information("✅ Using SQL Server database");
-            // Mask the password in the connection string for logging
-            var maskedConnectionString = System.Text.RegularExpressions.Regex.Replace(
-                connectionString, @"(Password|Pwd)=[^;]+", "$1=***", 
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            Log.Information("   Connection: {ConnectionString}", maskedConnectionString);
-            
-            builder.Services.AddDbContext<PlatformEngineeringCopilotContext>(options =>
-                options.UseSqlServer(connectionString));
+            var connStr = sqlServerConnectionString ?? defaultConnectionString;
+            if (!string.IsNullOrEmpty(connStr))
+            {
+                Log.Information("✅ Using SQL Server database");
+                var maskedConnectionString = System.Text.RegularExpressions.Regex.Replace(
+                    connStr, @"(Password|Pwd)=[^;]+", "$1=***",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                Log.Information("   Connection: {ConnectionString}", maskedConnectionString);
+                builder.Services.AddDbContext<PlatformEngineeringCopilotContext>(options =>
+                    options.UseSqlServer(connStr));
+            }
+            else
+            {
+                Log.Warning("⚠️ DatabaseProvider=SqlServer but no connection string found, falling back to SQLite");
+                var dbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../..", "platform_engineering_copilot.db"));
+                builder.Services.AddDbContext<PlatformEngineeringCopilotContext>(options =>
+                    options.UseSqlite($"Data Source={dbPath}"));
+            }
         }
         else
         {
-            // Fallback to SQLite
-            Log.Warning("⚠️ No SQL Server connection string found, falling back to SQLite");
-            var dbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../..", "platform_engineering_copilot_management.db"));
-            var sqliteConnectionString = $"Data Source={dbPath}";
-            Log.Information("   SQLite Path: {DbPath}", dbPath);
+            // SQLite - use DefaultConnection if provided (may contain full connection string), else derive path
+            var dbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../..", "platform_engineering_copilot.db"));
+            var sqliteConnStr = defaultConnectionString ?? $"Data Source={dbPath}";
+            Log.Information("✅ Using SQLite database: {Path}", sqliteConnStr);
             builder.Services.AddDbContext<PlatformEngineeringCopilotContext>(options =>
-                options.UseSqlite(sqliteConnectionString));
+                options.UseSqlite(sqliteConnStr));
         }
 
         // Register HttpClient for services that need it (like NistControlsService)
@@ -150,36 +159,45 @@ class Program
             logging.AddSerilog();
         });
 
-        // Register database context - use SQL Server connection from config or env variable
+        // Register database context - respects DatabaseProvider config ("Sqlite" or "SqlServer")
         var configuration = builder.Configuration;
-        var connectionString = configuration.GetConnectionString("DefaultConnection") 
-            ?? configuration.GetConnectionString("SqlServerConnection");
-        
-        Log.Information("🔧 Database connection string lookup:");
-        Log.Information("   - DefaultConnection: {Exists}", configuration.GetConnectionString("DefaultConnection") != null ? "Found" : "Not found");
-        Log.Information("   - SqlServerConnection: {Exists}", configuration.GetConnectionString("SqlServerConnection") != null ? "Found" : "Not found");
-        
-        if (!string.IsNullOrEmpty(connectionString))
+        var databaseProvider = configuration["DatabaseProvider"] ?? "Sqlite";
+        var defaultConnectionString = configuration.GetConnectionString("DefaultConnection");
+        var sqlServerConnectionString = configuration.GetConnectionString("SqlServerConnection");
+
+        Log.Information("🔧 Database configuration: Provider={Provider}", databaseProvider);
+        Log.Information("   - DefaultConnection: {Exists}", defaultConnectionString != null ? "Found" : "Not found");
+        Log.Information("   - SqlServerConnection: {Exists}", sqlServerConnectionString != null ? "Found" : "Not found");
+
+        if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
         {
-            Log.Information("✅ Using SQL Server database");
-            // Mask the password in the connection string for logging
-            var maskedConnectionString = System.Text.RegularExpressions.Regex.Replace(
-                connectionString, @"(Password|Pwd)=[^;]+", "$1=***", 
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            Log.Information("   Connection: {ConnectionString}", maskedConnectionString);
-            
-            builder.Services.AddDbContext<PlatformEngineeringCopilotContext>(options =>
-                options.UseSqlServer(connectionString));
+            var connStr = sqlServerConnectionString ?? defaultConnectionString;
+            if (!string.IsNullOrEmpty(connStr))
+            {
+                Log.Information("✅ Using SQL Server database");
+                var maskedConnectionString = System.Text.RegularExpressions.Regex.Replace(
+                    connStr, @"(Password|Pwd)=[^;]+", "$1=***",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                Log.Information("   Connection: {ConnectionString}", maskedConnectionString);
+                builder.Services.AddDbContext<PlatformEngineeringCopilotContext>(options =>
+                    options.UseSqlServer(connStr));
+            }
+            else
+            {
+                Log.Warning("⚠️ DatabaseProvider=SqlServer but no connection string found, falling back to SQLite");
+                var dbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../..", "platform_engineering_copilot.db"));
+                builder.Services.AddDbContext<PlatformEngineeringCopilotContext>(options =>
+                    options.UseSqlite($"Data Source={dbPath}"));
+            }
         }
         else
         {
-            // Fallback to SQLite
-            Log.Warning("⚠️ No SQL Server connection string found, falling back to SQLite");
-            var dbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../..", "platform_engineering_copilot_management.db"));
-            var sqliteConnectionString = $"Data Source={dbPath}";
-            Log.Information("   SQLite Path: {DbPath}", dbPath);
+            // SQLite - use DefaultConnection if provided (may contain full connection string), else derive path
+            var dbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../..", "platform_engineering_copilot.db"));
+            var sqliteConnStr = defaultConnectionString ?? $"Data Source={dbPath}";
+            Log.Information("✅ Using SQLite database: {Path}", sqliteConnStr);
             builder.Services.AddDbContext<PlatformEngineeringCopilotContext>(options =>
-                options.UseSqlite(sqliteConnectionString));
+                options.UseSqlite(sqliteConnStr));
         }
 
         // Register HttpClient for services that need it (like NistControlsService)
@@ -387,14 +405,23 @@ class Program
             try
             {
                 var context = scope.ServiceProvider.GetRequiredService<PlatformEngineeringCopilotContext>();
-                Log.Information("🔄 Ensuring database is created...");
+                Log.Information("🔄 Applying database migrations...");
                 Log.Information("🔍 Database provider: {Provider}", context.Database.ProviderName);
-                context.Database.EnsureCreated();
-                Log.Information("✅ Database created/verified successfully");
+                if (context.Database.IsRelational())
+                {
+                    context.Database.Migrate();
+                    Log.Information("✅ Database migrations applied successfully");
+                }
+                else
+                {
+                    context.Database.EnsureCreated();
+                    Log.Information("✅ Database created/verified successfully");
+                }
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "❌ Failed to create/verify database");
+                Log.Error(ex, "❌ Failed to apply database migrations — aborting startup");
+                throw; // Do not start with an uninitialized database
             }
         }
 

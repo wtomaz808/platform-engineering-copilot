@@ -14,7 +14,8 @@ public static class DatabaseSeeder
   /// </summary>
   public static async Task SeedAsync(PlatformEngineeringCopilotContext context)
   {
-    await context.Database.EnsureCreatedAsync();
+    // Note: Do NOT call EnsureCreatedAsync here — migrations handle schema creation.
+    // EnsureCreated bypasses the migrations history table and causes conflicts.
 
     // Seed environment templates
     await SeedInfrastructureTemplatesAsync(context);

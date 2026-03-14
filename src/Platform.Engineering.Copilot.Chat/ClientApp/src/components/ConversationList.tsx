@@ -66,9 +66,9 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 pb-3">
-        <h2 className="text-lg font-semibold text-gray-800">Conversations</h2>
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Conversations</h2>
         <button 
-          className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors duration-200 text-blue-600"
+          className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors duration-200 text-blue-600 dark:text-blue-400"
           onClick={onNewConversation}
           title="Start new conversation"
         >
@@ -79,7 +79,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
       <div className="px-4 pb-4">
         <input
           type="text"
-          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg placeholder-gray-400 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-400 dark:placeholder-gray-500 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
           placeholder="Search conversations..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -98,10 +98,10 @@ export const ConversationList: React.FC<ConversationListProps> = ({
           filteredConversations.map((conversation) => (
             <div
               key={conversation.id}
-              className={`p-3 mx-2 mb-2 rounded-lg transition-all duration-200 hover:bg-gray-50 group ${
+              className={`p-3 mx-2 mb-2 rounded-lg transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800 group ${
                 selectedConversationId === conversation.id 
-                  ? 'bg-blue-50 border border-blue-200 shadow-md' 
-                  : 'bg-white border border-gray-200'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 shadow-md' 
+                  : 'bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700'
               }`}
             >
               <div 
@@ -109,7 +109,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                 onClick={() => onSelectConversation(conversation.id)}
               >
                 <div className="flex justify-between items-start mb-1">
-                  <div className="font-medium text-gray-800 truncate flex-1">
+                  <div className="font-medium text-gray-800 dark:text-gray-100 truncate flex-1">
                     {conversation.title || 'New Conversation'}
                   </div>
                   <button

@@ -1,8 +1,8 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
 using Platform.Engineering.Copilot.Core.Configuration;
-using System.ComponentModel;
 using System.Text.Json;
 using System.Web;
 
@@ -18,40 +18,44 @@ public class ListGitHubPullRequestsTool : BaseTool
     private readonly GatewayOptions _gatewayOptions;
     private readonly DevOpsAgentOptions _devOpsOptions;
 
+    public override string Name => "list_github_pull_requests";
+
+    public override string Description =>
+        "Lists GitHub pull requests with filtering by state, author, base branch, and sorting options. " +
+        "Use this to find open PRs, review outstanding requests, or check merge status.";
+
     public ListGitHubPullRequestsTool(
+        ILogger<ListGitHubPullRequestsTool> logger,
         IHttpClientFactory httpClientFactory,
-        GatewayOptions gatewayOptions,
-        DevOpsAgentOptions devOpsOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions)
+        : base(logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _gatewayOptions = gatewayOptions?.Value ?? throw new ArgumentNullException(nameof(gatewayOptions));
+        _devOpsOptions = devOpsOptions?.Value ?? throw new ArgumentNullException(nameof(devOpsOptions));
+
+        Parameters.Add(new ToolParameter("repository", "Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')", true));
+        Parameters.Add(new ToolParameter("state", "OPTIONAL: Filter by PR state - 'open', 'closed', or 'all' (default: 'open')", false));
+        Parameters.Add(new ToolParameter("baseBranch", "OPTIONAL: Filter by base branch the PRs are targeting", false));
+        Parameters.Add(new ToolParameter("headBranch", "OPTIONAL: Filter by head branch with changes", false));
+        Parameters.Add(new ToolParameter("sort", "OPTIONAL: Sort by 'created', 'updated', 'popularity', or 'long-running' (default: 'created')", false));
+        Parameters.Add(new ToolParameter("direction", "OPTIONAL: Sort direction - 'asc' or 'desc' (default: 'desc')", false));
+        Parameters.Add(new ToolParameter("maxResults", "OPTIONAL: Maximum number of pull requests to return (default: 30, max: 100)", false));
     }
 
-    [KernelFunction("list_github_pull_requests")]
-    [Description("Lists GitHub pull requests with filtering by state, author, base branch, and sorting options")]
-    public async Task<string> ExecuteAsync(
-        [Description("Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')")]
-        string repository,
-        
-        [Description("OPTIONAL: Filter by PR state - 'open', 'closed', or 'all' (default: 'open')")]
-        string? state = "open",
-        
-        [Description("OPTIONAL: Filter by base branch (the branch PRs are targeting)")]
-        string? baseBranch = null,
-        
-        [Description("OPTIONAL: Filter by head branch (the branch with changes)")]
-        string? headBranch = null,
-        
-        [Description("OPTIONAL: Sort by 'created', 'updated', 'popularity', or 'long-running' (default: 'created')")]
-        string? sort = "created",
-        
-        [Description("OPTIONAL: Sort direction - 'asc' or 'desc' (default: 'desc')")]
-        string? direction = "desc",
-        
-        [Description("OPTIONAL: Maximum number of pull requests to return (default: 30, max: 100)")]
-        int? maxResults = 30)
+    public override async Task<string> ExecuteAsync(
+        IDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
     {
+        var repository = arguments.TryGetValue("repository", out var repoVal) ? repoVal?.ToString() ?? "" : "";
+        var state = arguments.TryGetValue("state", out var stateVal) ? stateVal?.ToString() : "open";
+        var baseBranch = arguments.TryGetValue("baseBranch", out var baseVal) ? baseVal?.ToString() : null;
+        var headBranch = arguments.TryGetValue("headBranch", out var headVal) ? headVal?.ToString() : null;
+        var sort = arguments.TryGetValue("sort", out var sortVal) ? sortVal?.ToString() : "created";
+        var direction = arguments.TryGetValue("direction", out var dirVal) ? dirVal?.ToString() : "desc";
+        int? maxResults = arguments.TryGetValue("maxResults", out var maxVal) && int.TryParse(maxVal?.ToString(), out var maxInt) ? maxInt : 30;
+
         try
         {
             // Validate repository format

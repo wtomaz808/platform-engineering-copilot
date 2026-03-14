@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChatProvider, useChat } from './contexts/ChatContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import { Header } from './components/Header';
 import { ConversationList } from './components/ConversationList';
 import { ChatWindow } from './components/ChatWindow';
@@ -125,14 +126,14 @@ const AppContent: React.FC = () => {
   const selectedConversation = state.conversations.find(c => c.id === selectedConversationId) || null;
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 text-gray-800">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 dark:from-gray-950 dark:via-gray-900 dark:to-gray-800 text-gray-800 dark:text-gray-100">
       <Header 
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         sidebarOpen={sidebarOpen}
         currentConversationTitle={selectedConversation?.title}
       />
       <div className="flex flex-1 h-[calc(100vh-60px)]">
-        <div className={`w-80 bg-white/80 backdrop-blur-md border-r border-gray-300 transition-transform duration-300 overflow-y-auto shadow-lg ${!sidebarOpen ? '-translate-x-full w-0' : ''}`}>
+        <div className={`w-80 bg-white/80 dark:bg-gray-900/90 backdrop-blur-md border-r border-gray-300 dark:border-gray-700 transition-transform duration-300 overflow-y-auto shadow-lg ${!sidebarOpen ? '-translate-x-full w-0' : ''}`}>
           <ConversationList
             conversations={state.conversations}
             selectedConversationId={selectedConversationId}
@@ -142,7 +143,7 @@ const AppContent: React.FC = () => {
             loading={state.isLoading}
           />
         </div>
-        <div className="flex-1 flex flex-col bg-white/50">
+        <div className="flex-1 flex flex-col bg-white/50 dark:bg-gray-900/50">
           <ChatWindow
             conversation={selectedConversation}
             messages={state.messages}
@@ -160,9 +161,11 @@ function App() {
   console.log('🚀 App component rendering at:', new Date().toISOString());
   
   return (
-    <ChatProvider>
-      <AppContent />
-    </ChatProvider>
+    <SettingsProvider>
+      <ChatProvider>
+        <AppContent />
+      </ChatProvider>
+    </SettingsProvider>
   );
 }
 

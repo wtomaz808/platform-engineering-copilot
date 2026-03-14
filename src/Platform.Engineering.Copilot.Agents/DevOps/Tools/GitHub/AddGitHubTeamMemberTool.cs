@@ -1,7 +1,8 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
-using System.ComponentModel;
+using Platform.Engineering.Copilot.Core.Configuration;
 using System.Text;
 using System.Text.Json;
 
@@ -17,31 +18,38 @@ public class AddGitHubTeamMemberTool : BaseTool
     private readonly GatewayOptions _gatewayOptions;
     private readonly DevOpsAgentOptions _devOpsOptions;
 
+    public override string Name => "add_github_team_member";
+
+    public override string Description =>
+        "Adds a user to a GitHub organization team with specified role (member or maintainer). " +
+        "Use this to grant repository access, onboard new team members, or set up team permissions.";
+
     public AddGitHubTeamMemberTool(
+        ILogger<AddGitHubTeamMemberTool> logger,
         IHttpClientFactory httpClientFactory,
-        GatewayOptions gatewayOptions,
-        DevOpsAgentOptions devOpsOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions)
+        : base(logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _gatewayOptions = gatewayOptions?.Value ?? throw new ArgumentNullException(nameof(gatewayOptions));
+        _devOpsOptions = devOpsOptions?.Value ?? throw new ArgumentNullException(nameof(devOpsOptions));
+
+        Parameters.Add(new ToolParameter("organization", "Organization name (e.g., 'azure', 'microsoft')", true));
+        Parameters.Add(new ToolParameter("teamSlug", "Team slug (URL-friendly team name, e.g., 'platform-engineering-team')", true));
+        Parameters.Add(new ToolParameter("username", "GitHub username to add to the team", true));
+        Parameters.Add(new ToolParameter("role", "OPTIONAL: Team role - 'member' or 'maintainer' (default: 'member')", false));
     }
 
-    [KernelFunction("add_github_team_member")]
-    [Description("Adds a user to a GitHub organization team with specified role (member or maintainer)")]
-    public async Task<string> ExecuteAsync(
-        [Description("Organization name (e.g., 'azure', 'microsoft')")]
-        string organization,
-        
-        [Description("Team slug (URL-friendly team name, e.g., 'platform-engineering-team')")]
-        string teamSlug,
-        
-        [Description("GitHub username to add to the team")]
-        string username,
-        
-        [Description("OPTIONAL: Team role - 'member' or 'maintainer' (default: 'member')")]
-        string? role = "member")
+    public override async Task<string> ExecuteAsync(
+        IDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
     {
+        var organization = arguments.TryGetValue("organization", out var orgVal) ? orgVal?.ToString() ?? "" : "";
+        var teamSlug = arguments.TryGetValue("teamSlug", out var slugVal) ? slugVal?.ToString() ?? "" : "";
+        var username = arguments.TryGetValue("username", out var userVal) ? userVal?.ToString() ?? "" : "";
+        var role = arguments.TryGetValue("role", out var roleVal) ? roleVal?.ToString() : "member";
+
         try
         {
             // Validate required fields

@@ -30,15 +30,23 @@ public class DevOpsAgent : BaseAgent
         IChatClient chatClient,
         ILogger<DevOpsAgent> logger,
         IOptions<DevOpsAgentOptions> options,
-        // GitHub Repository Management Tools (2 working, 8 pending refactor)
+        // GitHub Repository Management Tools
         CreateGitHubRepositoryTool createGitHubRepositoryTool,
         ListGitHubRepositoriesTool listGitHubRepositoriesTool,
-        // TODO: Add these 8 tools once refactored to BaseTool pattern:
-        // UpdateGitHubRepositoryTool, DeleteGitHubRepositoryTool,
-        // CreateGitHubIssueTool, ListGitHubIssuesTool,
-        // CreateGitHubPullRequestTool, ListGitHubPullRequestsTool,
-        // TriggerGitHubActionTool, ListGit HubActionRunsTool,
-        // AddGitHubTeamMemberTool, ListGitHubTeamsTool
+        UpdateGitHubRepositoryTool updateGitHubRepositoryTool,
+        DeleteGitHubRepositoryTool deleteGitHubRepositoryTool,
+        // GitHub Issue Tracking
+        CreateGitHubIssueTool createGitHubIssueTool,
+        ListGitHubIssuesTool listGitHubIssuesTool,
+        // GitHub Pull Requests
+        CreateGitHubPullRequestTool createGitHubPullRequestTool,
+        ListGitHubPullRequestsTool listGitHubPullRequestsTool,
+        // GitHub Actions / CI-CD
+        TriggerGitHubActionTool triggerGitHubActionTool,
+        ListGitHubActionRunsTool listGitHubActionRunsTool,
+        // GitHub Team Management
+        AddGitHubTeamMemberTool addGitHubTeamMemberTool,
+        ListGitHubTeamsTool listGitHubTeamsTool,
         IAgentStateManager? agentStateManager = null,
         ISharedMemory? sharedMemory = null)
         : base(chatClient, logger, agentStateManager, sharedMemory)
@@ -48,27 +56,27 @@ public class DevOpsAgent : BaseAgent
         // Register GitHub tools (if enabled)
         if (_options.GitHub.Enabled)
         {
-            // Repository management (2/4 complete)
+            // Repository management
             RegisterTool(createGitHubRepositoryTool);
             RegisterTool(listGitHubRepositoriesTool);
-            // TODO: RegisterToolmUpdateGitHubRepositoryTool);
-            // TODO: RegisterTool(deleteGitHubRepositoryTool);
+            RegisterTool(updateGitHubRepositoryTool);
+            RegisterTool(deleteGitHubRepositoryTool);
 
-            // Issue tracking (0/2 - pending refactor)
-            // TODO: RegisterTool(createGitHubIssueTool);
-            // TODO: RegisterTool(listGitHubIssuesTool);
+            // Issue tracking
+            RegisterTool(createGitHubIssueTool);
+            RegisterTool(listGitHubIssuesTool);
 
-            // Pull requests (0/2 - pending refactor)
-            // TODO: RegisterTool(createGitHubPullRequestTool);
-            // TODO: RegisterTool(listGitHubPullRequestsTool);
+            // Pull requests
+            RegisterTool(createGitHubPullRequestTool);
+            RegisterTool(listGitHubPullRequestsTool);
 
-            // GitHub Actions/CI-CD (0/2 - pending refactor)
-            // TODO: RegisterTool(triggerGitHubActionTool);
-            // TODO: RegisterTool(listGitHubActionRunsTool);
+            // GitHub Actions / CI-CD
+            RegisterTool(triggerGitHubActionTool);
+            RegisterTool(listGitHubActionRunsTool);
 
-            // Team management (0/2 - pending refactor)
-            // TODO: RegisterTool(addGitHubTeamMemberTool);
-            // TODO: RegisterTool(listGitHubTeamsTool);
+            // Team management
+            RegisterTool(addGitHubTeamMemberTool);
+            RegisterTool(listGitHubTeamsTool);
         }
 
         // TODO: Register Azure DevOps tools (when implemented)

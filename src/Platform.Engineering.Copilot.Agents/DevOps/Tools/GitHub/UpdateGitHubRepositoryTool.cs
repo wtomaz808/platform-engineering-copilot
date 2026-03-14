@@ -1,8 +1,8 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
 using Platform.Engineering.Copilot.Core.Configuration;
-using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 
@@ -18,49 +18,50 @@ public class UpdateGitHubRepositoryTool : BaseTool
     private readonly GatewayOptions _gatewayOptions;
     private readonly DevOpsAgentOptions _devOpsOptions;
 
+    public override string Name => "update_github_repository";
+
+    public override string Description =>
+        "Updates GitHub repository settings including description, visibility, homepage, topics, and features. " +
+        "Use this when the user wants to rename, change visibility, update description, or modify features of an existing repo.";
+
     public UpdateGitHubRepositoryTool(
+        ILogger<UpdateGitHubRepositoryTool> logger,
         IHttpClientFactory httpClientFactory,
-        GatewayOptions gatewayOptions,
-        DevOpsAgentOptions devOpsOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions)
+        : base(logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _gatewayOptions = gatewayOptions?.Value ?? throw new ArgumentNullException(nameof(gatewayOptions));
+        _devOpsOptions = devOpsOptions?.Value ?? throw new ArgumentNullException(nameof(devOpsOptions));
+
+        Parameters.Add(new ToolParameter("repository", "Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')", true));
+        Parameters.Add(new ToolParameter("description", "OPTIONAL: New repository description", false));
+        Parameters.Add(new ToolParameter("visibility", "OPTIONAL: New repository visibility - 'public' or 'private'", false));
+        Parameters.Add(new ToolParameter("homepage", "OPTIONAL: Repository homepage URL", false));
+        Parameters.Add(new ToolParameter("topics", "OPTIONAL: Comma-separated list of topics/tags (e.g., 'azure,devops,iac')", false));
+        Parameters.Add(new ToolParameter("hasWiki", "OPTIONAL: Enable/disable wiki - 'true' or 'false'", false));
+        Parameters.Add(new ToolParameter("hasIssues", "OPTIONAL: Enable/disable issues - 'true' or 'false'", false));
+        Parameters.Add(new ToolParameter("hasProjects", "OPTIONAL: Enable/disable projects - 'true' or 'false'", false));
+        Parameters.Add(new ToolParameter("enableVulnerabilityAlerts", "OPTIONAL: Enable/disable vulnerability alerts - 'true' or 'false'", false));
+        Parameters.Add(new ToolParameter("archived", "OPTIONAL: Archive the repository - 'true' or 'false'", false));
     }
 
-    [KernelFunction("update_github_repository")]
-    [Description("Updates GitHub repository settings including description, visibility, homepage, topics, and features")]
-    public async Task<string> ExecuteAsync(
-        [Description("Repository identifier in format 'owner/repo' (e.g., 'azure/azure-sdk')")]
-        string repository,
-        
-        [Description("OPTIONAL: New repository description")]
-        string? description = null,
-        
-        [Description("OPTIONAL: New repository visibility - 'public' or 'private'")]
-        string? visibility = null,
-        
-        [Description("OPTIONAL: Repository homepage URL")]
-        string? homepage = null,
-        
-        [Description("OPTIONAL: Comma-separated list of topics/tags (e.g., 'azure,devops,iac')")]
-        string? topics = null,
-        
-        [Description("OPTIONAL: Enable/disable wiki - 'true' or 'false'")]
-        string? hasWiki = null,
-        
-        [Description("OPTIONAL: Enable/disable issues - 'true' or 'false'")]
-        string? hasIssues = null,
-        
-        [Description("OPTIONAL: Enable/disable projects - 'true' or 'false'")]
-        string? hasProjects = null,
-        
-        [Description("OPTIONAL: Enable/disable vulnerability alerts - 'true' or 'false'")]
-        string? enableVulnerabilityAlerts = null,
-        
-        [Description("OPTIONAL: Archive the repository - 'true' or 'false'")]
-        string? archived = null)
+    public override async Task<string> ExecuteAsync(
+        IDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
     {
+        var repository = arguments.TryGetValue("repository", out var repoVal) ? repoVal?.ToString() ?? "" : "";
+        var description = arguments.TryGetValue("description", out var descVal) ? descVal?.ToString() : null;
+        var visibility = arguments.TryGetValue("visibility", out var visVal) ? visVal?.ToString() : null;
+        var homepage = arguments.TryGetValue("homepage", out var homeVal) ? homeVal?.ToString() : null;
+        var topics = arguments.TryGetValue("topics", out var topicsVal) ? topicsVal?.ToString() : null;
+        var hasWiki = arguments.TryGetValue("hasWiki", out var wikiVal) ? wikiVal?.ToString() : null;
+        var hasIssues = arguments.TryGetValue("hasIssues", out var issuesVal) ? issuesVal?.ToString() : null;
+        var hasProjects = arguments.TryGetValue("hasProjects", out var projVal) ? projVal?.ToString() : null;
+        var enableVulnerabilityAlerts = arguments.TryGetValue("enableVulnerabilityAlerts", out var alertsVal) ? alertsVal?.ToString() : null;
+        var archived = arguments.TryGetValue("archived", out var archivedVal) ? archivedVal?.ToString() : null;
+
         try
         {
             // Validate repository format

@@ -198,6 +198,37 @@ public class PlatformSelectionStrategy
              !lower.Contains("generate") && !lower.Contains("bicep") && !lower.Contains("terraform")))
             return agents.FirstOrDefault(a => a.Name.Contains("Environment", StringComparison.OrdinalIgnoreCase));
 
+        // DevOps patterns - GitHub and Azure DevOps operations
+        bool isDevOpsRequest =
+            // GitHub repository operations
+            lower.Contains("create repo") || lower.Contains("create repository") ||
+            lower.Contains("list repo") || lower.Contains("list repositor") ||
+            lower.Contains("update repo") || lower.Contains("update repository") ||
+            lower.Contains("delete repo") || lower.Contains("delete repository") ||
+            lower.Contains("archive repo") || lower.Contains("fork repo") ||
+            // GitHub issues
+            (lower.Contains("create") && lower.Contains("issue") && !lower.Contains("compliance")) ||
+            (lower.Contains("list") && lower.Contains("issue") && !lower.Contains("compliance")) ||
+            // GitHub pull requests
+            lower.Contains("pull request") || lower.Contains("open pr") || lower.Contains("create pr") ||
+            lower.Contains("list pr") || lower.Contains("merge pr") ||
+            // GitHub Actions / CI-CD
+            lower.Contains("trigger workflow") || lower.Contains("trigger action") ||
+            lower.Contains("workflow run") || lower.Contains("action run") ||
+            lower.Contains("ci/cd") || lower.Contains("pipeline") ||
+            lower.Contains("dispatch workflow") || lower.Contains("run workflow") ||
+            // GitHub team management
+            (lower.Contains("add") && lower.Contains("team") && lower.Contains("member")) ||
+            (lower.Contains("list") && lower.Contains("team")) ||
+            // General GitHub keyword
+            lower.Contains("github") ||
+            // Azure DevOps
+            lower.Contains("azure devops") || lower.Contains("ado ") ||
+            (lower.Contains("work item") && !lower.Contains("compliance"));
+
+        if (isDevOpsRequest)
+            return agents.FirstOrDefault(a => a.Name.Contains("DevOps", StringComparison.OrdinalIgnoreCase));
+
         return null;
     }
 

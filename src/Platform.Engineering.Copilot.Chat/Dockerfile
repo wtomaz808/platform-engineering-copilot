@@ -33,7 +33,7 @@ COPY src/Platform.Engineering.Copilot.State/*.csproj ./src/Platform.Engineering.
 COPY src/Platform.Engineering.Copilot.Channels/*.csproj ./src/Platform.Engineering.Copilot.Channels/
 COPY src/Platform.Engineering.Copilot.Mcp/*.csproj ./src/Platform.Engineering.Copilot.Mcp/
 
-# Restore dependencies (architecture-independent)
+# Restore .NET dependencies (architecture-independent)
 RUN dotnet restore ./src/Platform.Engineering.Copilot.Chat/Platform.Engineering.Copilot.Chat.csproj
 
 # Stage 2: Build
@@ -48,7 +48,13 @@ COPY src/Platform.Engineering.Copilot.State/. ./src/Platform.Engineering.Copilot
 COPY src/Platform.Engineering.Copilot.Channels/. ./src/Platform.Engineering.Copilot.Channels/
 COPY src/Platform.Engineering.Copilot.Mcp/. ./src/Platform.Engineering.Copilot.Mcp/
 
-# Build and publish (architecture-independent, uses container's native arch)
+# Install npm dependencies fresh in build stage (with source code present) and build React
+ENV NODE_OPTIONS=--max_old_space_size=2048
+RUN cd src/Platform.Engineering.Copilot.Chat/ClientApp && \
+    npm install --legacy-peer-deps && \
+    npm run build
+
+# Publish .NET app — React is already built above, skip re-running npm
 WORKDIR /src/src/Platform.Engineering.Copilot.Chat
 RUN dotnet publish Platform.Engineering.Copilot.Chat.csproj \
     -c Release \
@@ -57,6 +63,9 @@ RUN dotnet publish Platform.Engineering.Copilot.Chat.csproj \
     /p:PublishReadyToRun=false \
     /p:PublishTrimmed=false \
     /p:SkipSpaPublish=true
+
+# Copy the React build output into wwwroot
+RUN cp -r /src/src/Platform.Engineering.Copilot.Chat/ClientApp/build/. /app/publish/wwwroot/
 
 # Stage 3: Runtime (optimized and hardened)
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime

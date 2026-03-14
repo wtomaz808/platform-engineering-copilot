@@ -619,21 +619,19 @@ public static class ServiceCollectionExtensions
         var options = configuration.GetSection(DevOpsAgentOptions.SectionName)
             .Get<DevOpsAgentOptions>() ?? new DevOpsAgentOptions();
 
-        // Add GitHub tools (only 2 working, 8 pending refactor to BaseTool pattern)
+        // Add GitHub tools
         services.AddScoped<CreateGitHubRepositoryTool>();
         services.AddScoped<ListGitHubRepositoriesTool>();
-
-        // TODO: Refactor these 8 tools to use BaseTool pattern (not [KernelFunction])
-        // services.AddScoped<UpdateGitHubRepositoryTool>();
-        // services.AddScoped<DeleteGitHubRepositoryTool>();
-        // services.AddScoped<CreateGitHubIssueTool>();
-        // services.AddScoped<ListGitHubIssuesTool>();
-        // services.AddScoped<CreateGitHubPullRequestTool>();
-        // services.AddScoped<ListGitHubPullRequestsTool>();
-        // services.AddScoped<TriggerGitHubActionTool>();
-        // services.AddScoped<ListGitHubActionRunsTool>();
-        // services.AddScoped<AddGitHubTeamMemberTool>();
-        // services.AddScoped<ListGitHubTeamsTool>();
+        services.AddScoped<UpdateGitHubRepositoryTool>();
+        services.AddScoped<DeleteGitHubRepositoryTool>();
+        services.AddScoped<CreateGitHubIssueTool>();
+        services.AddScoped<ListGitHubIssuesTool>();
+        services.AddScoped<CreateGitHubPullRequestTool>();
+        services.AddScoped<ListGitHubPullRequestsTool>();
+        services.AddScoped<TriggerGitHubActionTool>();
+        services.AddScoped<ListGitHubActionRunsTool>();
+        services.AddScoped<AddGitHubTeamMemberTool>();
+        services.AddScoped<ListGitHubTeamsTool>();
 
         // TODO: Add Azure DevOps tools when implemented
         // services.AddScoped<CreateADORepositoryTool>();

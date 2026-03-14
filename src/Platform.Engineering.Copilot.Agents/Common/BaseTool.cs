@@ -175,6 +175,18 @@ public abstract class BaseTool
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
     }
+
+    /// <summary>
+    /// Create a standardized error response
+    /// </summary>
+    protected string CreateErrorResponse(string error)
+        => ToJson(new { success = false, error });
+
+    /// <summary>
+    /// Create a standardized success response
+    /// </summary>
+    protected string CreateSuccessResponse<T>(T data)
+        => ToJson(new { success = true, data });
 }
 
 /// <summary>

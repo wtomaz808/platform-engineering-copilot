@@ -147,34 +147,29 @@ public class AuditLogEntity
     /// Additional metadata as JSON
     /// Stores custom fields, request details, etc.
     /// </summary>
-    [Column(TypeName = "nvarchar(max)")]
     public string? MetadataJson { get; set; }
 
     /// <summary>
     /// Tags for categorization and filtering (JSON)
     /// </summary>
-    [Column(TypeName = "nvarchar(max)")]
     public string? TagsJson { get; set; }
 
     /// <summary>
     /// Change details (before/after values) as JSON
     /// Stores old values, new values, changed fields
     /// </summary>
-    [Column(TypeName = "nvarchar(max)")]
     public string? ChangeDetailsJson { get; set; }
 
     /// <summary>
     /// Compliance context as JSON
     /// Stores control IDs, framework, violations, review requirements
     /// </summary>
-    [Column(TypeName = "nvarchar(max)")]
     public string? ComplianceContextJson { get; set; }
 
     /// <summary>
     /// Security context as JSON
     /// Stores threat level, security policies, MFA requirements, permissions
     /// </summary>
-    [Column(TypeName = "nvarchar(max)")]
     public string? SecurityContextJson { get; set; }
 
     /// <summary>
