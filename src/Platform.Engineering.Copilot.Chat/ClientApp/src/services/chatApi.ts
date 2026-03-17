@@ -27,6 +27,11 @@ export const chatApi = {
     return response.data;
   },
 
+  async updateConversation(conversationId: string, title: string): Promise<Conversation> {
+    const response = await apiClient.patch(`/api/conversations/${conversationId}/title`, { title });
+    return response.data;
+  },
+
   async deleteConversation(conversationId: string): Promise<void> {
     await apiClient.delete(`/api/conversations/${conversationId}`);
   },
@@ -59,5 +64,10 @@ export const chatApi = {
     });
     
     return response.data;
+  },
+
+  // Settings
+  async updateGitHubSettings(organization: string, accessToken: string): Promise<void> {
+    await apiClient.post('/api/settings/github', { organization, accessToken });
   },
 };

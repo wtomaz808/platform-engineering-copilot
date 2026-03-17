@@ -20,7 +20,8 @@ const AppContent: React.FC = () => {
     loadConversations: loadConversationsFromContext,
     selectConversation,
     createConversation,
-    deleteConversation 
+    deleteConversation,
+    renameConversation
   } = useChat();
   const connectionStatus = state.isConnected ? 'Connected' : 'Disconnected';
 
@@ -65,7 +66,15 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async (content: string, attachments?: File[]) => {
+  const handleRenameConversation = async (id: string, title: string) => {
+    try {
+      await renameConversation(id, title);
+    } catch (error: any) {
+      console.error('Failed to rename conversation:', error);
+    }
+  };
+
+  const handleSendMessage = async (content: string, attachments?: File[], model?: string) => {
     if (!selectedConversationId) return;
 
     try {
@@ -110,10 +119,18 @@ const AppContent: React.FC = () => {
         conversationId: selectedConversationId,
         message: content,
         attachmentIds: attachmentIds,
-        context: {}
+        context: { model: model ?? 'gpt-4o' }
       };
 
       await sendMessage(request);
+
+      // Auto-name the conversation from the first user message
+      const conv = state.conversations.find(c => c.id === selectedConversationId);
+      const msgCount = state.messages.filter(m => m.conversationId === selectedConversationId).length;
+      if (conv && (conv.title === 'New Conversation' || !conv.title) && msgCount <= 1 && content.trim()) {
+        const autoTitle = content.trim().slice(0, 50) + (content.trim().length > 50 ? '…' : '');
+        await renameConversation(selectedConversationId, autoTitle);
+      }
 
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -140,6 +157,7 @@ const AppContent: React.FC = () => {
             onSelectConversation={handleSelectConversation}
             onNewConversation={handleNewConversation}
             onDeleteConversation={handleDeleteConversation}
+            onRenameConversation={handleRenameConversation}
             loading={state.isLoading}
           />
         </div>

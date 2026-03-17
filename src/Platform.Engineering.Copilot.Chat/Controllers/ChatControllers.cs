@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
 using Platform.Engineering.Copilot.Chat.App.Models;
 using Platform.Engineering.Copilot.Chat.App.Services;
+using Platform.Engineering.Copilot.Core.Configuration;
 
 namespace Platform.Engineering.Copilot.Chat.App.Controllers;
 
@@ -80,6 +83,32 @@ public class ConversationsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating conversation");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Rename a conversation
+    /// </summary>
+    [HttpPatch("{conversationId}/title")]
+    public async Task<ActionResult<Conversation>> UpdateConversationTitle(
+        string conversationId,
+        [FromBody] UpdateConversationTitleRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.Title))
+                return BadRequest("Title is required");
+
+            var conversation = await _chatService.UpdateConversationTitleAsync(conversationId, request.Title);
+            if (conversation == null)
+                return NotFound();
+
+            return Ok(conversation);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error renaming conversation {ConversationId}", conversationId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -224,4 +253,65 @@ public class CreateConversationRequest
 {
     public string? Title { get; set; }
     public string? UserId { get; set; }
+}
+
+/// <summary>
+/// Request model for renaming a conversation
+/// </summary>
+public class UpdateConversationTitleRequest
+{
+    public string Title { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// API controller for runtime settings overrides (no persistence — resets on container restart)
+/// </summary>
+[ApiController]
+[Route("api/[controller]")]
+public class SettingsController : ControllerBase
+{
+    private readonly IOptions<GatewayOptions> _gatewayOptions;
+    private readonly IOptions<DevOpsAgentOptions> _devOpsOptions;
+    private readonly ILogger<SettingsController> _logger;
+
+    public SettingsController(
+        IOptions<GatewayOptions> gatewayOptions,
+        IOptions<DevOpsAgentOptions> devOpsOptions,
+        ILogger<SettingsController> logger)
+    {
+        _gatewayOptions = gatewayOptions;
+        _devOpsOptions = devOpsOptions;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Override GitHub settings at runtime (in-memory only; resets on restart)
+    /// </summary>
+    [HttpPost("github")]
+    public IActionResult UpdateGitHubSettings([FromBody] GitHubSettingsRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.AccessToken))
+        {
+            _gatewayOptions.Value.GitHub.AccessToken = request.AccessToken;
+            _gatewayOptions.Value.GitHub.Enabled = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Organization))
+        {
+            _gatewayOptions.Value.GitHub.DefaultOwner = request.Organization;
+            _devOpsOptions.Value.GitHub.DefaultOrg = request.Organization;
+        }
+
+        _logger.LogInformation("GitHub runtime settings updated. Org: {Org}", request.Organization);
+        return Ok(new { success = true });
+    }
+}
+
+/// <summary>
+/// Request model for updating GitHub settings
+/// </summary>
+public class GitHubSettingsRequest
+{
+    public string? Organization { get; set; }
+    public string? AccessToken { get; set; }
 }

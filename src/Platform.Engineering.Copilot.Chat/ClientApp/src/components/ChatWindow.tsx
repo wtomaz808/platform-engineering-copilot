@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Bot, User, Zap, CheckCircle, Clock, TrendingUp, ChevronDown } from 'lucide-react';
+import { Send, Paperclip, Bot, User, Zap, CheckCircle, Clock, TrendingUp, ChevronDown, Copy, Mail } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -10,7 +10,7 @@ import { useChat } from '../contexts/ChatContext';
 interface ChatWindowProps {
   conversation: Conversation | null;
   messages: ChatMessage[];
-  onSendMessage: (content: string, attachments?: File[]) => void;
+  onSendMessage: (content: string, attachments?: File[], model?: string) => void;
   loading: boolean;
   isTyping: boolean;
 }
@@ -27,6 +27,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [expandedToolResults, setExpandedToolResults] = useState<Set<string>>(new Set());
   const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,13 +55,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim() || attachments.length > 0) {
-      onSendMessage(inputValue.trim(), attachments);
+      onSendMessage(inputValue.trim(), attachments, selectedModel);
       setInputValue('');
       setAttachments([]);
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
     }
+  };
+
+  const handleCopy = (messageId: string, content: string) => {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopiedId(messageId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  const handleEmail = (content: string) => {
+    const body = encodeURIComponent(content);
+    window.open(`mailto:?subject=PE%20Copilot%20Response&body=${body}`);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -340,9 +353,45 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </div>
               )}
               
-              <div className={`text-xs mt-2 ${message.role === MessageRole.User ? 'text-blue-200' : 'text-gray-500'}`}>
-                {formatTime(message.timestamp)}
-              </div>
+              {/* Timestamp + model attribution + action buttons (assistant only) */}
+              {message.role !== MessageRole.User && (
+                <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">{formatTime(message.timestamp)}</span>
+                    {message.metadata?.model && (
+                      <span className="text-xs px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full border border-blue-200 dark:border-blue-800">
+                        Answered by {message.metadata.model}
+                      </span>
+                    )}
+                  </div>
+                  {(message.status as string) !== 'Processing' && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleCopy(message.id, message.content)}
+                        title="Copy response"
+                        className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <Copy size={14} />
+                        {copiedId === message.id && (
+                          <span className="absolute ml-5 -mt-5 text-xs bg-black text-white px-1.5 py-0.5 rounded">Copied!</span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleEmail(message.content)}
+                        title="Email response"
+                        className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <Mail size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {message.role === MessageRole.User && (
+                <div className="text-xs mt-2 text-blue-200">
+                  {formatTime(message.timestamp)}
+                </div>
+              )}
             </div>
           </div>
         ))}

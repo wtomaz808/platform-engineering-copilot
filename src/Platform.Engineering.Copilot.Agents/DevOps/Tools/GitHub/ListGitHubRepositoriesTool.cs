@@ -143,12 +143,24 @@ public class ListGitHubRepositoriesTool : BaseTool
         var client = _httpClientFactory.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_gatewayOptions.GitHub.AccessToken}");
         client.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
+        client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
         client.DefaultRequestHeaders.Add("User-Agent", "Platform-Engineering-Copilot");
 
-        var url = $"{_gatewayOptions.GitHub.ApiBaseUrl}/orgs/{org}/repos?type={visibility}&per_page={Math.Min(limit, 100)}";
-        
-        var response = await client.GetAsync(url, cancellationToken);
-        
+        var perPage = Math.Min(limit, 100);
+
+        // Try org endpoint first; GitHub returns 404 for personal accounts on /orgs/
+        var orgUrl = $"{_gatewayOptions.GitHub.ApiBaseUrl}/orgs/{org}/repos?type={visibility}&per_page={perPage}";
+        var response = await client.GetAsync(orgUrl, cancellationToken);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound ||
+            response.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity)
+        {
+            // org is actually a personal account — fall back to /users/{username}/repos
+            Logger.LogInformation("'{Org}' is not an organisation, trying /users/ endpoint", org);
+            var userUrl = $"{_gatewayOptions.GitHub.ApiBaseUrl}/users/{org}/repos?type={visibility}&per_page={perPage}";
+            response = await client.GetAsync(userUrl, cancellationToken);
+        }
+
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync(cancellationToken);

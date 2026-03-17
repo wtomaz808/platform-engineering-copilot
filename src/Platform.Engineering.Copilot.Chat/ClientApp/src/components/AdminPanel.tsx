@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Moon, Sun, GitBranch, Cloud, Info, ChevronRight, ChevronDown, Check } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
+import { chatApi } from '../services/chatApi';
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -18,6 +19,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const showSaved = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleSaveAndClose = async () => {
+    // Sync GitHub settings to backend if token is provided
+    if (settings.github.token && settings.github.enabled) {
+      try {
+        await chatApi.updateGitHubSettings(settings.github.organization, settings.github.token);
+      } catch (e) {
+        console.error('Failed to sync GitHub settings to backend:', e);
+      }
+    }
+    showSaved();
+    onClose();
   };
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -232,7 +246,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                           placeholder="ghp_xxxxxxxxxxxx"
                           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        <p className="text-xs text-gray-400 mt-1">Token is stored in your browser's localStorage and never sent to a server.</p>
+                        <p className="text-xs text-gray-400 mt-1">Token is sent to the backend to authenticate GitHub API calls.</p>
                       </div>
                     </div>
                   )}
@@ -300,7 +314,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
           </div>
           <div className="flex gap-3">
             <button
-              onClick={() => { showSaved(); onClose(); }}
+              onClick={handleSaveAndClose}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
               Save & Close

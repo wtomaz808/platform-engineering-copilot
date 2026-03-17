@@ -200,12 +200,17 @@ public class PlatformSelectionStrategy
 
         // DevOps patterns - GitHub and Azure DevOps operations
         bool isDevOpsRequest =
-            // GitHub repository operations
+            // GitHub repository operations - natural language variations
             lower.Contains("create repo") || lower.Contains("create repository") ||
             lower.Contains("list repo") || lower.Contains("list repositor") ||
+            lower.Contains("my repos") || lower.Contains("my repo") || lower.Contains("my repositor") ||
+            lower.Contains("show repo") || lower.Contains("show repositor") ||
+            lower.Contains("get repo") || lower.Contains("get repositor") ||
             lower.Contains("update repo") || lower.Contains("update repository") ||
             lower.Contains("delete repo") || lower.Contains("delete repository") ||
             lower.Contains("archive repo") || lower.Contains("fork repo") ||
+            // "GH" shorthand
+            lower.Contains(" gh ") || lower.Contains(" gh repos") || lower.StartsWith("gh ") ||
             // GitHub issues
             (lower.Contains("create") && lower.Contains("issue") && !lower.Contains("compliance")) ||
             (lower.Contains("list") && lower.Contains("issue") && !lower.Contains("compliance")) ||
@@ -328,8 +333,9 @@ public class PlatformSelectionStrategy
             (wordCount <= 3 && (lower.StartsWith("1") || lower.StartsWith("2") || lower.StartsWith("3") ||
              lower.Contains("first") || lower.Contains("second") || lower.Contains("third") ||
              lower.Contains("option"))) ||
-            // Short parameter-like inputs (under 5 words, no clear agent keywords)
-            (wordCount <= 5 && !ContainsAgentKeywords(lower));
+            // Very short parameter-like inputs (3 words or fewer, no clear agent keywords)
+            // Reduced from 5→3 to prevent short but specific queries from being hijacked
+            (wordCount <= 3 && !ContainsAgentKeywords(lower));
 
         if (!isFollowUpPattern)
             return null;
@@ -369,7 +375,13 @@ public class PlatformSelectionStrategy
             {
                 // Look for agent clues in the last response
                 var lastContent = lastAssistantMessage.Content.ToLowerInvariant();
-                
+
+                if (lastContent.Contains("github") || lastContent.Contains("repositor") ||
+                    lastContent.Contains("pull request") || lastContent.Contains("pipeline") ||
+                    lastContent.Contains("workflow") || lastContent.Contains("azure devops") ||
+                    lastContent.Contains("work item"))
+                    return agents.FirstOrDefault(a => a.Name.Contains("DevOps", StringComparison.OrdinalIgnoreCase));
+
                 if (lastContent.Contains("environment") || lastContent.Contains("template") || 
                     lastContent.Contains("landing zone") || lastContent.Contains("provisioning") ||
                     lastContent.Contains("delete") || lastContent.Contains("permanently"))
@@ -377,7 +389,6 @@ public class PlatformSelectionStrategy
                     _logger.LogInformation("🔗 Continuation selection from message history: Environment Agent");
                     return agents.FirstOrDefault(a => a.Name.Contains("Environment", StringComparison.OrdinalIgnoreCase));
                 }
-                    return agents.FirstOrDefault(a => a.Name.Contains("Environment", StringComparison.OrdinalIgnoreCase));
                 
                 if (lastContent.Contains("compliance") || lastContent.Contains("nist") || 
                     lastContent.Contains("fedramp") || lastContent.Contains("assessment"))
@@ -407,6 +418,14 @@ public class PlatformSelectionStrategy
                lower.Contains("discover") || lower.Contains("list resource") || lower.Contains("find resource") ||
                lower.Contains("generate") || lower.Contains("bicep") || lower.Contains("terraform") ||
                lower.Contains("template") || lower.Contains("environment") || lower.Contains("provision") ||
-               lower.Contains("subscription") || lower.Contains("nist") || lower.Contains("control");
+               lower.Contains("subscription") || lower.Contains("nist") || lower.Contains("control") ||
+               // DevOps / GitHub keywords — MUST NOT be treated as continuations
+               lower.Contains("github") || lower.Contains("repo") || lower.Contains("repositor") ||
+               lower.Contains("pipeline") || lower.Contains("workflow") || lower.Contains("devops") ||
+               lower.Contains("pull request") || lower.Contains(" pr ") || lower.StartsWith("pr ") ||
+               lower.Contains("issue") || lower.Contains("ci/cd") || lower.Contains("branch") ||
+               lower.Contains("team member") || lower.Contains("action run") ||
+               // Azure DevOps keywords
+               lower.Contains("azure devops") || lower.Contains("work item") || lower.Contains("ado ");
     }
 }

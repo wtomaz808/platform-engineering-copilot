@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, MessageCircle, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Plus, MessageCircle, Trash2, Pencil, Check, X } from 'lucide-react';
 import { Conversation } from '../types/chat';
-import { chatApi } from '../services/chatApi';
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -9,6 +8,7 @@ interface ConversationListProps {
   onSelectConversation: (id: string) => void;
   onNewConversation: () => void;
   onDeleteConversation: (id: string) => void;
+  onRenameConversation: (id: string, title: string) => void;
   loading: boolean;
 }
 
@@ -18,10 +18,14 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   onSelectConversation,
   onNewConversation,
   onDeleteConversation,
+  onRenameConversation,
   loading
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -34,6 +38,36 @@ export const ConversationList: React.FC<ConversationListProps> = ({
       setFilteredConversations(filtered);
     }
   }, [conversations, searchTerm]);
+
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingId]);
+
+  const startEditing = (e: React.MouseEvent, conv: Conversation) => {
+    e.stopPropagation();
+    setEditingId(conv.id);
+    setEditingTitle(conv.title || 'New Conversation');
+  };
+
+  const commitRename = (id: string) => {
+    const trimmed = editingTitle.trim();
+    if (trimmed && trimmed !== 'New Conversation') {
+      onRenameConversation(id, trimmed);
+    }
+    setEditingId(null);
+  };
+
+  const cancelRename = () => {
+    setEditingId(null);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent, id: string) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitRename(id); }
+    if (e.key === 'Escape') { cancelRename(); }
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -106,24 +140,56 @@ export const ConversationList: React.FC<ConversationListProps> = ({
             >
               <div 
                 className="cursor-pointer"
-                onClick={() => onSelectConversation(conversation.id)}
+                onClick={() => editingId !== conversation.id && onSelectConversation(conversation.id)}
               >
                 <div className="flex justify-between items-start mb-1">
-                  <div className="font-medium text-gray-800 dark:text-gray-100 truncate flex-1">
-                    {conversation.title || 'New Conversation'}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (window.confirm('Are you sure you want to delete this conversation?')) {
-                        onDeleteConversation(conversation.id);
-                      }
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 hover:bg-red-100 rounded text-red-600 hover:text-red-800 ml-2"
-                    title="Delete conversation"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {editingId === conversation.id ? (
+                    <div className="flex items-center gap-1 flex-1" onClick={e => e.stopPropagation()}>
+                      <input
+                        ref={editInputRef}
+                        type="text"
+                        value={editingTitle}
+                        onChange={e => setEditingTitle(e.target.value)}
+                        onKeyDown={e => handleRenameKeyDown(e, conversation.id)}
+                        onBlur={() => commitRename(conversation.id)}
+                        className="flex-1 text-sm font-medium bg-white dark:bg-gray-700 border border-blue-400 rounded px-1 py-0.5 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        maxLength={80}
+                      />
+                      <button
+                        onMouseDown={e => { e.preventDefault(); commitRename(conversation.id); }}
+                        className="p-0.5 text-green-600 hover:text-green-800"
+                        title="Save"
+                      ><Check size={13} /></button>
+                      <button
+                        onMouseDown={e => { e.preventDefault(); cancelRename(); }}
+                        className="p-0.5 text-gray-400 hover:text-gray-600"
+                        title="Cancel"
+                      ><X size={13} /></button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="font-medium text-gray-800 dark:text-gray-100 truncate flex-1">
+                        {conversation.title || 'New Conversation'}
+                      </div>
+                      <div className="flex items-center gap-0.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button
+                          onClick={e => startEditing(e, conversation)}
+                          className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded text-blue-500 hover:text-blue-700"
+                          title="Rename"
+                        ><Pencil size={13} /></button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Delete this conversation?')) {
+                              onDeleteConversation(conversation.id);
+                            }
+                          }}
+                          className="p-1 hover:bg-red-100 rounded text-red-500 hover:text-red-700"
+                          title="Delete"
+                        ><Trash2 size={13} /></button>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
                   <span>{conversation.messageCount || 0} messages</span>

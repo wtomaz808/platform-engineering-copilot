@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
@@ -34,6 +35,15 @@
           }
         }
       }
+    </script>
+    <script>
+      // Restore dark mode immediately before React mounts to prevent flash
+      (function() {
+        try {
+          var s = JSON.parse(localStorage.getItem('pec_settings') || '{}');
+          if (s.darkMode) document.documentElement.classList.add('dark');
+        } catch(e) {}
+      })();
     </script>
     <title>Platform Engineering Copilot</title>
     <style>

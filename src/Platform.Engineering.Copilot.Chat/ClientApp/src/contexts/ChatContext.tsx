@@ -21,10 +21,12 @@ type ChatAction =
   | { type: 'SET_MESSAGES'; payload: ChatMessage[] }
   | { type: 'ADD_MESSAGE'; payload: ChatMessage }
   | { type: 'UPDATE_MESSAGE'; payload: ChatMessage }
+  | { type: 'REMOVE_PROCESSING'; payload: string }  // conversationId
   | { type: 'SET_CONNECTED'; payload: boolean }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'ADD_CONVERSATION'; payload: Conversation };
+  | { type: 'ADD_CONVERSATION'; payload: Conversation }
+  | { type: 'RENAME_CONVERSATION'; payload: { id: string; title: string } };
 
 const initialState: ChatState = {
   conversations: [],
@@ -45,6 +47,13 @@ const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
       return { ...state, messages: action.payload };
     case 'ADD_MESSAGE':
       return { ...state, messages: [...state.messages, action.payload] };
+    case 'REMOVE_PROCESSING':
+      return {
+        ...state,
+        messages: state.messages.filter(
+          m => !(m.conversationId === action.payload && (m.status as string) === 'Processing')
+        ),
+      };
     case 'UPDATE_MESSAGE':
       return {
         ...state,
@@ -60,6 +69,17 @@ const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
       return { ...state, error: action.payload };
     case 'ADD_CONVERSATION':
       return { ...state, conversations: [action.payload, ...state.conversations] };
+    case 'RENAME_CONVERSATION':
+      return {
+        ...state,
+        conversations: state.conversations.map(c =>
+          c.id === action.payload.id ? { ...c, title: action.payload.title } : c
+        ),
+        currentConversation:
+          state.currentConversation?.id === action.payload.id
+            ? { ...state.currentConversation, title: action.payload.title }
+            : state.currentConversation,
+      };
     default:
       return state;
   }
@@ -73,6 +93,7 @@ interface ChatContextType {
   sendMessage: (request: ChatRequest) => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
   searchConversations: (query: string) => Promise<Conversation[]>;
+  renameConversation: (conversationId: string, title: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -80,6 +101,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const [connection, setConnection] = React.useState<HubConnection | null>(null);
+  const pendingModelRef = React.useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     console.log('🔄 ChatContext: Initializing SignalR connection...');
@@ -103,7 +125,14 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Set up event handlers before starting
         connection.on('MessageReceived', (message: ChatMessage) => {
           console.log('📨 Received message via SignalR:', message);
-          dispatch({ type: 'ADD_MESSAGE', payload: message });
+          // Remove any "Processing your request..." placeholder for this conversation
+          dispatch({ type: 'REMOVE_PROCESSING', payload: message.conversationId });
+          // Attach model attribution if we tracked one for this conversation
+          const model = pendingModelRef.current.get(message.conversationId);
+          const augmented = model
+            ? { ...message, metadata: { ...(message.metadata ?? {}), model } }
+            : message;
+          dispatch({ type: 'ADD_MESSAGE', payload: augmented });
         });
 
         connection.on('MessageProcessing', (data: { conversationId: string; message: string }) => {
@@ -207,6 +236,12 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const sendMessage = useCallback(async (request: ChatRequest) => {
     try {
+      // Track the model selection for this conversation so the response can carry attribution
+      const model = request.context?.model as string | undefined;
+      if (model) {
+        pendingModelRef.current.set(request.conversationId, model);
+      }
+
       // Add user message immediately
       const userMessage: ChatMessage = {
         id: `temp-${Date.now()}`,
@@ -255,6 +290,15 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const renameConversation = async (conversationId: string, title: string): Promise<void> => {
+    try {
+      await chatApi.updateConversation(conversationId, title);
+      dispatch({ type: 'RENAME_CONVERSATION', payload: { id: conversationId, title } });
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to rename conversation' });
+    }
+  };
+
   const contextValue: ChatContextType = {
     state,
     loadConversations,
@@ -263,6 +307,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sendMessage,
     deleteConversation,
     searchConversations,
+    renameConversation,
   };
 
   return (

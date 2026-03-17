@@ -21,6 +21,7 @@ public interface IChatService
     Task<ConversationContext> StoreContextAsync(ConversationContext context);
     Task<bool> DeleteConversationAsync(string conversationId);
     Task<List<Conversation>> SearchConversationsAsync(string query, string userId = "default-user");
+    Task<Conversation?> UpdateConversationTitleAsync(string conversationId, string title);
 }
 
 /// <summary>
@@ -256,6 +257,21 @@ public class ChatService : IChatService
             .OrderByDescending(c => c.UpdatedAt)
             .Take(20)
             .ToListAsync();
+    }
+
+    public async Task<Conversation?> UpdateConversationTitleAsync(string conversationId, string title)
+    {
+        var conversation = await _dbContext.Conversations
+            .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+        if (conversation == null) return null;
+
+        conversation.Title = title.Trim();
+        conversation.UpdatedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("Renamed conversation {ConversationId} to '{Title}'", conversationId, title);
+        return conversation;
     }
 
     // ============================================================================
