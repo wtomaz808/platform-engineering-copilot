@@ -140,8 +140,8 @@ public static class ServiceCollectionExtensions
 
             if (string.IsNullOrEmpty(endpoint))
             {
-                logger.LogWarning("⚠️ Azure OpenAI endpoint not configured (Gateway:AzureOpenAI:Endpoint). Using mock chat client.");
-                return new MockChatClient();
+                logger.LogError("❌ Azure OpenAI endpoint not configured (Gateway:AzureOpenAI:Endpoint). Set AZURE_OPENAI_ENDPOINT in your environment.");
+                throw new InvalidOperationException("Azure OpenAI endpoint is not configured. Set Gateway:AzureOpenAI:Endpoint (env: AZURE_OPENAI_ENDPOINT).");
             }
 
             logger.LogInformation("🤖 Configuring Azure OpenAI Chat Client: Endpoint={Endpoint}, Deployment={Deployment}, UseManagedIdentity={UseManagedIdentity}",
@@ -158,8 +158,8 @@ public static class ServiceCollectionExtensions
             }
             else
             {
-                logger.LogWarning("⚠️ Azure OpenAI API key not configured and UseManagedIdentity is false. Using mock chat client.");
-                return new MockChatClient();
+                logger.LogError("❌ Azure OpenAI API key not configured and UseManagedIdentity is false. Set AZURE_OPENAI_API_KEY in your environment.");
+                throw new InvalidOperationException("Azure OpenAI API key is not configured. Set Gateway:AzureOpenAI:ApiKey (env: AZURE_OPENAI_API_KEY) or enable UseManagedIdentity.");
             }
 
             // Get the ChatClient from Azure OpenAI and convert to IChatClient

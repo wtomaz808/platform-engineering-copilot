@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 export interface AdoSettings {
   serverUrl: string;
   portalUrl: string;
+  token: string;
   enabled: boolean;
 }
 
@@ -12,10 +13,32 @@ export interface GitHubSettings {
   enabled: boolean;
 }
 
+export interface OpenAISettings {
+  apiKey: string;
+  endpoint: string;
+  chatDeployment: string;
+  embeddingDeployment: string;
+}
+
+export interface SecurityBannerSettings {
+  enabled: boolean;
+  label: string;
+  bgColor: string;
+  textColor: string;
+}
+
+export interface BrandingSettings {
+  faviconDataUrl: string;
+  homeIconDataUrl: string;
+}
+
 export interface AppSettings {
   darkMode: boolean;
   ado: AdoSettings;
   github: GitHubSettings;
+  openai: OpenAISettings;
+  securityBanner: SecurityBannerSettings;
+  branding: BrandingSettings;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -23,12 +46,29 @@ const DEFAULT_SETTINGS: AppSettings = {
   ado: {
     serverUrl: '',
     portalUrl: '',
+    token: '',
     enabled: false,
   },
   github: {
     organization: '',
     token: '',
     enabled: false,
+  },
+  openai: {
+    apiKey: '',
+    endpoint: '',
+    chatDeployment: 'gpt-4o',
+    embeddingDeployment: 'text-embedding-ada-002',
+  },
+  securityBanner: {
+    enabled: false,
+    label: 'UNCLASSIFIED // FOR OFFICIAL USE ONLY',
+    bgColor: '#007a33',
+    textColor: '#ffffff',
+  },
+  branding: {
+    faviconDataUrl: '',
+    homeIconDataUrl: '',
   },
 };
 
@@ -37,6 +77,9 @@ interface SettingsContextValue {
   updateSettings: (patch: Partial<AppSettings>) => void;
   updateAdo: (patch: Partial<AdoSettings>) => void;
   updateGitHub: (patch: Partial<GitHubSettings>) => void;
+  updateOpenAI: (patch: Partial<OpenAISettings>) => void;
+  updateSecurityBanner: (patch: Partial<SecurityBannerSettings>) => void;
+  updateBranding: (patch: Partial<BrandingSettings>) => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
@@ -48,7 +91,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+        const parsed = JSON.parse(stored);
+        // Deep merge so new keys in DEFAULT_SETTINGS are always present
+        return {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          ado: { ...DEFAULT_SETTINGS.ado, ...parsed.ado },
+          github: { ...DEFAULT_SETTINGS.github, ...parsed.github },
+          openai: { ...DEFAULT_SETTINGS.openai, ...parsed.openai },
+          securityBanner: { ...DEFAULT_SETTINGS.securityBanner, ...parsed.securityBanner },
+          branding: { ...DEFAULT_SETTINGS.branding, ...parsed.branding },
+        };
       }
     } catch {
       // ignore
@@ -64,6 +117,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       document.documentElement.classList.remove('dark');
     }
   }, [settings.darkMode]);
+
+  // Apply branding favicon when restored from storage
+  useEffect(() => {
+    if (settings.branding.faviconDataUrl) {
+      const link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+      if (link) link.href = settings.branding.faviconDataUrl;
+    }
+  }, [settings.branding.faviconDataUrl]);
 
   // Persist to localStorage whenever settings change
   useEffect(() => {
@@ -82,8 +143,20 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSettings(prev => ({ ...prev, github: { ...prev.github, ...patch } }));
   }, []);
 
+  const updateOpenAI = useCallback((patch: Partial<OpenAISettings>) => {
+    setSettings(prev => ({ ...prev, openai: { ...prev.openai, ...patch } }));
+  }, []);
+
+  const updateSecurityBanner = useCallback((patch: Partial<SecurityBannerSettings>) => {
+    setSettings(prev => ({ ...prev, securityBanner: { ...prev.securityBanner, ...patch } }));
+  }, []);
+
+  const updateBranding = useCallback((patch: Partial<BrandingSettings>) => {
+    setSettings(prev => ({ ...prev, branding: { ...prev.branding, ...patch } }));
+  }, []);
+
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, updateAdo, updateGitHub }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, updateAdo, updateGitHub, updateOpenAI, updateSecurityBanner, updateBranding }}>
       {children}
     </SettingsContext.Provider>
   );

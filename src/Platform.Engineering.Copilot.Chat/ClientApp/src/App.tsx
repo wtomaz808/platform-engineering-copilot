@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ChatProvider, useChat } from './contexts/ChatContext';
-import { SettingsProvider } from './contexts/SettingsContext';
+import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { Header } from './components/Header';
 import { ConversationList } from './components/ConversationList';
 import { ChatWindow } from './components/ChatWindow';
+import { SettingsPage } from './components/SettingsPage';
 import { Conversation, ChatMessage, MessageRole, MessageStatus, ChatRequest } from './types/chat';
 import { chatApi } from './services/chatApi';
 import './styles/App.css';
@@ -13,6 +14,8 @@ const AppContent: React.FC = () => {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [currentView, setCurrentView] = useState<'chat' | 'settings'>('chat');
+  const { settings } = useSettings();
   
   const { 
     sendMessage, 
@@ -24,6 +27,21 @@ const AppContent: React.FC = () => {
     renameConversation
   } = useChat();
   const connectionStatus = state.isConnected ? 'Connected' : 'Disconnected';
+
+  // Keyboard shortcut: Ctrl+, opens settings, Esc goes back to chat
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === ',' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setCurrentView('settings');
+      }
+      if (e.key === 'Escape' && currentView === 'settings') {
+        setCurrentView('chat');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [currentView]);
 
   // Load conversations on mount using ChatContext
   useEffect(() => {
@@ -142,12 +160,27 @@ const AppContent: React.FC = () => {
 
   const selectedConversation = state.conversations.find(c => c.id === selectedConversationId) || null;
 
+  // Settings page view
+  if (currentView === 'settings') {
+    return <SettingsPage onBack={() => setCurrentView('chat')} />;
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 dark:from-gray-950 dark:via-gray-900 dark:to-gray-800 text-gray-800 dark:text-gray-100">
-      <Header 
+      {/* Security banner */}
+      {settings.securityBanner.enabled && (
+        <div
+          className="px-4 py-1.5 text-center text-sm font-semibold flex-shrink-0 select-none"
+          style={{ backgroundColor: settings.securityBanner.bgColor, color: settings.securityBanner.textColor }}
+        >
+          {settings.securityBanner.label || 'Security Banner'}
+        </div>
+      )}
+      <Header
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         sidebarOpen={sidebarOpen}
         currentConversationTitle={selectedConversation?.title}
+        onOpenSettings={() => setCurrentView('settings')}
       />
       <div className="flex flex-1 h-[calc(100vh-60px)]">
         <div className={`w-80 bg-white/80 dark:bg-gray-900/90 backdrop-blur-md border-r border-gray-300 dark:border-gray-700 transition-transform duration-300 overflow-y-auto shadow-lg ${!sidebarOpen ? '-translate-x-full w-0' : ''}`}>

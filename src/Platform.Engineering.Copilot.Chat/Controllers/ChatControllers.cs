@@ -286,7 +286,6 @@ public class SettingsController : ControllerBase
         [FromServices] IHttpClientFactory httpClientFactory,
         [FromServices] IConfiguration configuration)
     {
-        // Forward to MCP server (that's where the GitHub tools actually execute)
         var mcpBaseUrl = configuration["McpServer:BaseUrl"] ?? "http://platform-mcp:5100";
         try
         {
@@ -308,13 +307,133 @@ public class SettingsController : ControllerBase
             return StatusCode(502, new { error = "Could not reach MCP server", detail = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Test GitHub connectivity by calling the MCP debug endpoint.
+    /// </summary>
+    [HttpGet("github/test")]
+    public async Task<IActionResult> TestGitHubConnection(
+        [FromQuery] string? org,
+        [FromQuery] string? token,
+        [FromServices] IHttpClientFactory httpClientFactory,
+        [FromServices] IConfiguration configuration)
+    {
+        var mcpBaseUrl = configuration["McpServer:BaseUrl"] ?? "http://platform-mcp:5100";
+        try
+        {
+            // Push the token to MCP first so the test uses the user-supplied token
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                using var settingsClient = httpClientFactory.CreateClient();
+                settingsClient.Timeout = TimeSpan.FromSeconds(10);
+                await settingsClient.PostAsJsonAsync($"{mcpBaseUrl}/settings/github",
+                    new { Organization = org, AccessToken = token });
+            }
+
+            using var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(15);
+            var url = string.IsNullOrWhiteSpace(org)
+                ? $"{mcpBaseUrl}/mcp/debug/github/repos"
+                : $"{mcpBaseUrl}/mcp/debug/github/repos?org={Uri.EscapeDataString(org)}";
+            var resp = await client.GetAsync(url);
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+                return StatusCode((int)resp.StatusCode, body);
+            return Content(body, "application/json");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GitHub connection test failed");
+            return StatusCode(502, new { success = false, error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Save Azure DevOps settings (currently stored client-side; endpoint is reserved for future persistence).
+    /// </summary>
+    [HttpPost("ado")]
+    public IActionResult UpdateAdoSettings([FromBody] AdoSettingsRequest request)
+    {
+        _logger.LogInformation("ADO settings update received. Org: {Org}", request.ServerUrl);
+        return Ok(new { success = true });
+    }
+
+    /// <summary>
+    /// Test Azure DevOps connectivity using the provided PAT.
+    /// </summary>
+    [HttpGet("ado/test")]
+    public async Task<IActionResult> TestAdoConnection(
+        [FromQuery] string? serverUrl,
+        [FromQuery] string? token,
+        [FromServices] IHttpClientFactory httpClientFactory)
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl))
+            return BadRequest(new { success = false, error = "serverUrl is required" });
+
+        try
+        {
+            using var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(15);
+
+            // Normalise URL — ensure it ends without trailing slash, then append projects API
+            var baseUrl = serverUrl.TrimEnd('/');
+            var apiUrl = $"{baseUrl}/_apis/projects?api-version=7.0&$top=1";
+
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                var encoded = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{token}"));
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", encoded);
+            }
+
+            var resp = await client.GetAsync(apiUrl);
+            if (resp.IsSuccessStatusCode)
+            {
+                return Ok(new { success = true, message = "Connected to Azure DevOps successfully" });
+            }
+
+            var body = await resp.Content.ReadAsStringAsync();
+            _logger.LogWarning("ADO test returned {Status}: {Body}", resp.StatusCode, body);
+            return StatusCode((int)resp.StatusCode, new { success = false, error = $"ADO returned {(int)resp.StatusCode}" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ADO connection test failed for {Url}", serverUrl);
+            return StatusCode(502, new { success = false, error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Acknowledge OpenAI settings from the UI (actual keys must be set via environment variables).
+    /// </summary>
+    [HttpPost("openai")]
+    public IActionResult UpdateOpenAISettings([FromBody] OpenAISettingsRequest request)
+    {
+        _logger.LogInformation("OpenAI settings acknowledged from UI. Endpoint: {Endpoint}", request.Endpoint);
+        return Ok(new { success = true, note = "Settings stored in browser. Restart required for backend key changes." });
+    }
 }
 
-/// <summary>
-/// Request model for updating GitHub settings
-/// </summary>
+/// <summary>Request model for updating GitHub settings</summary>
 public class GitHubSettingsRequest
 {
     public string? Organization { get; set; }
     public string? AccessToken { get; set; }
+}
+
+/// <summary>Request model for updating Azure DevOps settings</summary>
+public class AdoSettingsRequest
+{
+    public string? ServerUrl { get; set; }
+    public string? PortalUrl { get; set; }
+    public string? AccessToken { get; set; }
+}
+
+/// <summary>Request model for updating OpenAI settings</summary>
+public class OpenAISettingsRequest
+{
+    public string? ApiKey { get; set; }
+    public string? Endpoint { get; set; }
+    public string? ChatDeployment { get; set; }
+    public string? EmbeddingDeployment { get; set; }
 }

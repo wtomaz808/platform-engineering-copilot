@@ -70,4 +70,32 @@ export const chatApi = {
   async updateGitHubSettings(organization: string, accessToken: string): Promise<void> {
     await apiClient.post('/api/settings/github', { organization, accessToken });
   },
+
+  async testGitHubConnection(org: string, token: string): Promise<{ success: boolean; count?: number; message?: string }> {
+    const params = new URLSearchParams();
+    if (org) params.set('org', org);
+    if (token) params.set('token', token);
+    const response = await apiClient.get(`/api/settings/github/test?${params}`);
+    const data = response.data;
+    return {
+      success: data.success ?? true,
+      count: data.count,
+      message: data.success ? `Connected — ${data.count ?? 0} repos found` : data.error,
+    };
+  },
+
+  async updateAdoSettings(serverUrl: string, accessToken: string, portalUrl?: string): Promise<void> {
+    await apiClient.post('/api/settings/ado', { serverUrl, accessToken, portalUrl });
+  },
+
+  async testAdoConnection(serverUrl: string, token: string): Promise<{ success: boolean; message?: string }> {
+    const params = new URLSearchParams({ serverUrl });
+    if (token) params.set('token', token);
+    const response = await apiClient.get(`/api/settings/ado/test?${params}`);
+    return response.data;
+  },
+
+  async updateOpenAISettings(apiKey: string, endpoint: string, chatDeployment: string, embeddingDeployment: string): Promise<void> {
+    await apiClient.post('/api/settings/openai', { apiKey, endpoint, chatDeployment, embeddingDeployment });
+  },
 };
