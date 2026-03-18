@@ -82,6 +82,8 @@ services:
       # GitHub Configuration
       - Gateway__GitHub__AccessToken=${GITHUB_TOKEN:-}
       - Gateway__GitHub__Enabled=${GITHUB_ENABLED:-true}
+      - Gateway__GitHub__DefaultOwner=${GITHUB_DEFAULT_OWNER:-}
+      - DevOpsAgent__GitHub__DefaultOrg=${GITHUB_DEFAULT_OWNER:-}
       # Git Sync Configuration
       - GitSync__GitHubToken=${GITHUB_TOKEN:-}
       - GitSync__AzureDevOpsToken=${AZURE_DEVOPS_TOKEN:-}
@@ -125,6 +127,9 @@ services:
       - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=PlatformChatDb;User=sa;Password=${SA_PASSWORD:-PlatformDB123!};TrustServerCertificate=true;MultipleActiveResultSets=true;Encrypt=false
       - ConnectionStrings__SqlServerConnection=Server=sqlserver,1433;Database=PlatformDb;User=sa;Password=${SA_PASSWORD:-PlatformDB123!};TrustServerCertificate=true;MultipleActiveResultSets=true;Encrypt=false
       - McpServer__BaseUrl=http://platform-mcp:5100
+      - Gateway__GitHub__AccessToken=${GITHUB_TOKEN:-}
+      - Gateway__GitHub__DefaultOwner=${GITHUB_DEFAULT_OWNER:-}
+      - DevOpsAgent__GitHub__DefaultOrg=${GITHUB_DEFAULT_OWNER:-}
       - Logging__LogLevel__Default=Information
     ports:
       - "5001:5001"

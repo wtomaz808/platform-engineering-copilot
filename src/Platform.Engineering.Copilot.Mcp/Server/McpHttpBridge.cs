@@ -4,6 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
+using Platform.Engineering.Copilot.Core.Configuration;
 using Platform.Engineering.Copilot.Core.Interfaces;
 using Platform.Engineering.Copilot.Core.Data.Context;
 using System.Text.Json;
@@ -538,7 +541,69 @@ public class McpHttpBridge
             }
         });
         _logger.LogInformation("   GET    /mcp/templates/latest - Get latest generated template");
+
+        // Runtime GitHub settings override (in-memory only; resets on MCP restart)
+        // Called by the Chat service when user saves settings in the Admin Panel
+        app.MapPost("/settings/github", async (HttpContext context) =>
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<McpHttpBridge>>();
+            try
+            {
+                var request = await JsonSerializer.DeserializeAsync<GitHubSettingsPayload>(
+                    context.Request.Body,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (request == null)
+                    return Results.BadRequest(new { error = "Invalid request" });
+
+                var gatewayOptions = context.RequestServices.GetRequiredService<IOptions<GatewayOptions>>();
+                var devOpsOptions = context.RequestServices.GetRequiredService<IOptions<DevOpsAgentOptions>>();
+
+                if (!string.IsNullOrWhiteSpace(request.AccessToken))
+                {
+                    gatewayOptions.Value.GitHub.AccessToken = request.AccessToken;
+                    gatewayOptions.Value.GitHub.Enabled = true;
+                    logger.LogInformation("✅ GitHub access token updated at runtime");
+                }
+                if (!string.IsNullOrWhiteSpace(request.Organization))
+                {
+                    gatewayOptions.Value.GitHub.DefaultOwner = request.Organization;
+                    devOpsOptions.Value.GitHub.DefaultOrg = request.Organization;
+                    logger.LogInformation("✅ GitHub org/owner updated to: {Org}", request.Organization);
+                }
+
+                return Results.Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error updating GitHub settings");
+                return Results.Json(new { error = ex.Message }, statusCode: 500);
+            }
+        });
+
+        // Direct GitHub repos test — bypasses LLM, calls the tool directly.
+        // Useful for verifying the GitHub token and org without Azure OpenAI configured.
+        app.MapGet("/mcp/debug/github/repos", async (HttpContext context) =>
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<McpHttpBridge>>();
+            try
+            {
+                var tool = context.RequestServices.GetRequiredService<Platform.Engineering.Copilot.Agents.DevOps.Tools.GitHub.ListGitHubRepositoriesTool>();
+                var org = context.Request.Query["org"].ToString();
+                var args = new Dictionary<string, object?> { ["org"] = string.IsNullOrWhiteSpace(org) ? null : org };
+                logger.LogInformation("🔧 Direct GitHub repos test | org: {Org}", string.IsNullOrWhiteSpace(org) ? "(default)" : org);
+                var result = await tool.ExecuteAsync(args, context.RequestAborted);
+                return Results.Content(result, "application/json");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in direct GitHub repos test");
+                return Results.Json(new { error = ex.Message }, statusCode: 500);
+            }
+        });
     }
+
+    private sealed record GitHubSettingsPayload(string? Organization, string? AccessToken);
 
     /// <summary>
     /// Process file attachments by saving base64-encoded content to temp directory

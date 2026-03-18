@@ -264,46 +264,49 @@ public class UpdateConversationTitleRequest
 }
 
 /// <summary>
-/// API controller for runtime settings overrides (no persistence — resets on container restart)
+/// API controller for runtime settings overrides — proxies to the MCP server.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class SettingsController : ControllerBase
 {
-    private readonly IOptions<GatewayOptions> _gatewayOptions;
-    private readonly IOptions<DevOpsAgentOptions> _devOpsOptions;
     private readonly ILogger<SettingsController> _logger;
 
-    public SettingsController(
-        IOptions<GatewayOptions> gatewayOptions,
-        IOptions<DevOpsAgentOptions> devOpsOptions,
-        ILogger<SettingsController> logger)
+    public SettingsController(ILogger<SettingsController> logger)
     {
-        _gatewayOptions = gatewayOptions;
-        _devOpsOptions = devOpsOptions;
         _logger = logger;
     }
 
     /// <summary>
-    /// Override GitHub settings at runtime (in-memory only; resets on restart)
+    /// Override GitHub settings at runtime — proxies to the MCP server where agents actually run.
     /// </summary>
     [HttpPost("github")]
-    public IActionResult UpdateGitHubSettings([FromBody] GitHubSettingsRequest request)
+    public async Task<IActionResult> UpdateGitHubSettings(
+        [FromBody] GitHubSettingsRequest request,
+        [FromServices] IHttpClientFactory httpClientFactory,
+        [FromServices] IConfiguration configuration)
     {
-        if (!string.IsNullOrWhiteSpace(request.AccessToken))
+        // Forward to MCP server (that's where the GitHub tools actually execute)
+        var mcpBaseUrl = configuration["McpServer:BaseUrl"] ?? "http://platform-mcp:5100";
+        try
         {
-            _gatewayOptions.Value.GitHub.AccessToken = request.AccessToken;
-            _gatewayOptions.Value.GitHub.Enabled = true;
+            using var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(10);
+            var resp = await client.PostAsJsonAsync($"{mcpBaseUrl}/settings/github", request);
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("MCP settings proxy returned {Status}: {Body}", resp.StatusCode, body);
+                return StatusCode((int)resp.StatusCode, body);
+            }
+            _logger.LogInformation("GitHub settings forwarded to MCP. Org: {Org}", request.Organization);
+            return Ok(new { success = true });
         }
-
-        if (!string.IsNullOrWhiteSpace(request.Organization))
+        catch (Exception ex)
         {
-            _gatewayOptions.Value.GitHub.DefaultOwner = request.Organization;
-            _devOpsOptions.Value.GitHub.DefaultOrg = request.Organization;
+            _logger.LogError(ex, "Failed to forward GitHub settings to MCP server at {Url}", mcpBaseUrl);
+            return StatusCode(502, new { error = "Could not reach MCP server", detail = ex.Message });
         }
-
-        _logger.LogInformation("GitHub runtime settings updated. Org: {Org}", request.Organization);
-        return Ok(new { success = true });
     }
 }
 
