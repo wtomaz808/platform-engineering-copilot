@@ -124,18 +124,46 @@ public class PlatformSelectionStrategy
             lower.Contains("iac") || lower.Contains("generate template"))
             return agents.FirstOrDefault(a => a.Name.Contains("Infrastructure", StringComparison.OrdinalIgnoreCase));
 
+        // App capability / about queries - go to Configuration Agent which has full app context
+        // These should NOT go to KnowledgeBase (compliance-only) or any single-domain agent
+        bool isAppAboutQuery =
+            (lower.Contains("what can you do") || lower.Contains("what can this app do") ||
+             lower.Contains("what are your capabilities") || lower.Contains("what are the capabilities") ||
+             lower.Contains("what are your features") || lower.Contains("what does this app do") ||
+             lower.Contains("tell me about this app") || lower.Contains("tell me about the app") ||
+             lower.Contains("how does this app work") || lower.Contains("what agents") ||
+             lower.Contains("about the agents") || lower.Contains("app overview") ||
+             lower.Contains("what is platform engineering copilot") || lower.Contains("about platform engineering") ||
+             lower.Contains("what functions") || lower.Contains("what features") ||
+             (lower.Contains("tell me about") && (lower.Contains("devops") || lower.Contains("github") || 
+              lower.Contains("features") || lower.Contains("functions") || lower.Contains("agents") || lower.Contains("app"))) ||
+             (lower.Contains("explain") && (lower.Contains("devops") || lower.Contains("devops functions") || 
+              lower.Contains("capabilities") || lower.Contains("features") || lower.Contains("agents"))) ||
+             lower.Contains("what does the app do") || lower.Contains("how does this work") && lower.Contains("app"));
+
+        if (isAppAboutQuery)
+            return agents.FirstOrDefault(a => a.Name.Contains("Configuration", StringComparison.OrdinalIgnoreCase));
+
         // Knowledge patterns - CHECK BEFORE COMPLIANCE to prioritize educational queries
         // When user asks "What is NIST control X?" they want explanation, not compliance scan
+        // IMPORTANT: Only route to KnowledgeBase for COMPLIANCE framework questions, NOT general app questions
         // Use specific patterns to avoid matching cost/spending questions like "What is my monthly spending?"
-        if (lower.Contains("explain") || lower.Contains("tell me about") ||
+        bool isComplianceKnowledgeQuery =
             lower.Contains("stig") || lower.Contains("cci") ||
-            (lower.Contains("what is") && (lower.Contains("nist") || lower.Contains("control") || lower.Contains("rmf") || 
-             lower.Contains("stig") || lower.Contains("cci") || lower.Contains("framework"))) ||
+            lower.Contains("rmf") || lower.Contains("risk management framework") ||
+            (lower.Contains("explain") && (lower.Contains("nist") || lower.Contains("stig") || lower.Contains("rmf") || 
+             lower.Contains("control") || lower.Contains("fedramp") || lower.Contains("impact level"))) ||
+            (lower.Contains("tell me about") && (lower.Contains("nist") || lower.Contains("stig") || lower.Contains("rmf") || 
+             lower.Contains("fedramp") || lower.Contains("compliance") || lower.Contains("control"))) ||
+            (lower.Contains("what is") && (lower.Contains("nist") || lower.Contains("control") || lower.Contains("rmf") ||
+             lower.Contains("stig") || lower.Contains("cci") || lower.Contains("framework") || lower.Contains("il2") || 
+             lower.Contains("il4") || lower.Contains("il5") || lower.Contains("il6"))) ||
             (lower.Contains("what does") && (lower.Contains("control") || lower.Contains("family"))) ||
             (lower.Contains("how does") && (lower.Contains("compliance") || lower.Contains("nist") || lower.Contains("control"))) ||
             (lower.Contains("nist") && (lower.Contains("control") || lower.Contains("family"))) ||
-            (lower.Contains("family") && lower.Contains("control")) ||
-            lower.Contains("rmf") || lower.Contains("risk management framework"))
+            (lower.Contains("family") && lower.Contains("control"));
+
+        if (isComplianceKnowledgeQuery)
             return agents.FirstOrDefault(a => a.Name.Contains("Knowledge", StringComparison.OrdinalIgnoreCase));
 
         // Environment patterns - Platform Engineering provisioning requests (CHECK BEFORE COMPLIANCE)

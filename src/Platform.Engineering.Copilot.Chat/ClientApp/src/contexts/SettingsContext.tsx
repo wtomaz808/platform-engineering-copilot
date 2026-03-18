@@ -1,5 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+export interface AzureSettings {
+  tenantId: string;
+  subscriptionId: string;
+  clientId: string;
+  clientSecret: string;
+  cloudEnvironment: string;
+  useManagedIdentity: boolean;
+  enabled: boolean;
+}
+
 export interface AdoSettings {
   serverUrl: string;
   portalUrl: string;
@@ -34,6 +44,7 @@ export interface BrandingSettings {
 
 export interface AppSettings {
   darkMode: boolean;
+  azure: AzureSettings;
   ado: AdoSettings;
   github: GitHubSettings;
   openai: OpenAISettings;
@@ -43,6 +54,15 @@ export interface AppSettings {
 
 const DEFAULT_SETTINGS: AppSettings = {
   darkMode: false,
+  azure: {
+    tenantId: '',
+    subscriptionId: '',
+    clientId: '',
+    clientSecret: '',
+    cloudEnvironment: 'AzureGovernment',
+    useManagedIdentity: false,
+    enabled: false,
+  },
   ado: {
     serverUrl: '',
     portalUrl: '',
@@ -75,6 +95,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 interface SettingsContextValue {
   settings: AppSettings;
   updateSettings: (patch: Partial<AppSettings>) => void;
+  updateAzure: (patch: Partial<AzureSettings>) => void;
   updateAdo: (patch: Partial<AdoSettings>) => void;
   updateGitHub: (patch: Partial<GitHubSettings>) => void;
   updateOpenAI: (patch: Partial<OpenAISettings>) => void;
@@ -96,6 +117,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return {
           ...DEFAULT_SETTINGS,
           ...parsed,
+          azure: { ...DEFAULT_SETTINGS.azure, ...parsed.azure },
           ado: { ...DEFAULT_SETTINGS.ado, ...parsed.ado },
           github: { ...DEFAULT_SETTINGS.github, ...parsed.github },
           openai: { ...DEFAULT_SETTINGS.openai, ...parsed.openai },
@@ -135,6 +157,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSettings(prev => ({ ...prev, ...patch }));
   }, []);
 
+  const updateAzure = useCallback((patch: Partial<AzureSettings>) => {
+    setSettings(prev => ({ ...prev, azure: { ...prev.azure, ...patch } }));
+  }, []);
+
   const updateAdo = useCallback((patch: Partial<AdoSettings>) => {
     setSettings(prev => ({ ...prev, ado: { ...prev.ado, ...patch } }));
   }, []);
@@ -156,7 +182,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, updateAdo, updateGitHub, updateOpenAI, updateSecurityBanner, updateBranding }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, updateAzure, updateAdo, updateGitHub, updateOpenAI, updateSecurityBanner, updateBranding }}>
       {children}
     </SettingsContext.Provider>
   );

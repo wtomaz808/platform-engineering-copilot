@@ -412,6 +412,57 @@ public class SettingsController : ControllerBase
         _logger.LogInformation("OpenAI settings acknowledged from UI. Endpoint: {Endpoint}", request.Endpoint);
         return Ok(new { success = true, note = "Settings stored in browser. Restart required for backend key changes." });
     }
+
+    /// <summary>
+    /// Save Azure subscription / service principal settings forwarded from the UI.
+    /// </summary>
+    [HttpPost("azure")]
+    public async Task<IActionResult> UpdateAzureSettings(
+        [FromBody] AzureSettingsRequest request,
+        [FromServices] IHttpClientFactory httpClientFactory,
+        [FromServices] IConfiguration configuration)
+    {
+        var mcpBaseUrl = configuration["McpServer:BaseUrl"] ?? "http://platform-mcp:5100";
+        try
+        {
+            using var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(10);
+            await client.PostAsJsonAsync($"{mcpBaseUrl}/settings/azure", request);
+        }
+        catch
+        {
+            // MCP server unavailable — silently continue; settings live in browser
+        }
+
+        _logger.LogInformation(
+            "Azure settings acknowledged. TenantId: {Tenant}, SubscriptionId: {Sub}, Cloud: {Cloud}",
+            request.TenantId, request.SubscriptionId, request.CloudEnvironment);
+        return Ok(new { success = true });
+    }
+
+    /// <summary>
+    /// Validate Azure credential format and return a connectivity result.
+    /// Full token acquisition requires the Azure SDK on the MCP tier.
+    /// </summary>
+    [HttpPost("azure/test")]
+    public IActionResult TestAzureConnection([FromBody] AzureSettingsRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.TenantId) && !Guid.TryParse(request.TenantId, out _))
+            return BadRequest(new { success = false, message = "Tenant ID must be a valid GUID." });
+
+        if (!string.IsNullOrWhiteSpace(request.SubscriptionId) && !Guid.TryParse(request.SubscriptionId, out _))
+            return BadRequest(new { success = false, message = "Subscription ID must be a valid GUID." });
+
+        if (!string.IsNullOrWhiteSpace(request.ClientId) && !Guid.TryParse(request.ClientId, out _))
+            return BadRequest(new { success = false, message = "Client ID must be a valid GUID." });
+
+        var cloud = request.CloudEnvironment ?? "AzureCloud";
+        return Ok(new
+        {
+            success = true,
+            message = $"Format validated for {cloud}. Full connectivity test is performed by the backend agents at runtime.",
+        });
+    }
 }
 
 /// <summary>Request model for updating GitHub settings</summary>
@@ -436,4 +487,15 @@ public class OpenAISettingsRequest
     public string? Endpoint { get; set; }
     public string? ChatDeployment { get; set; }
     public string? EmbeddingDeployment { get; set; }
+}
+
+/// <summary>Request model for updating Azure subscription / service principal settings</summary>
+public class AzureSettingsRequest
+{
+    public string? TenantId { get; set; }
+    public string? SubscriptionId { get; set; }
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
+    public string? CloudEnvironment { get; set; }
+    public bool UseManagedIdentity { get; set; }
 }

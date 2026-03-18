@@ -98,4 +98,30 @@ export const chatApi = {
   async updateOpenAISettings(apiKey: string, endpoint: string, chatDeployment: string, embeddingDeployment: string): Promise<void> {
     await apiClient.post('/api/settings/openai', { apiKey, endpoint, chatDeployment, embeddingDeployment });
   },
+
+  async updateAzureSettings(
+    tenantId: string,
+    subscriptionId: string,
+    clientId: string,
+    clientSecret: string,
+    cloudEnvironment: string,
+    useManagedIdentity: boolean,
+  ): Promise<void> {
+    await apiClient.post('/api/settings/azure', {
+      tenantId, subscriptionId, clientId, clientSecret, cloudEnvironment, useManagedIdentity,
+    });
+  },
+
+  async testAzureConnection(
+    tenantId: string,
+    subscriptionId: string,
+    clientId: string,
+    clientSecret: string,
+    cloudEnvironment: string,
+  ): Promise<{ success: boolean; message?: string }> {
+    const response = await apiClient.post('/api/settings/azure/test', {
+      tenantId, subscriptionId, clientId, clientSecret, cloudEnvironment,
+    });
+    return response.data;
+  },
 };

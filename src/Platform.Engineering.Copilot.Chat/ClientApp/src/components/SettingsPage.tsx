@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   ArrowLeft, Settings, GitBranch, Palette, Info,
   Check, X, Loader2, Shield, Sun, Moon, Upload,
-  Eye, EyeOff, Zap, Bot, Cloud,
+  Eye, EyeOff, Zap, Bot, Cloud, Database,
 } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { chatApi } from '../services/chatApi';
@@ -73,49 +73,55 @@ const agents = [
     icon: '🎯',
     name: 'Orchestrator',
     description:
-      'Primary routing agent — analyzes user intent, selects the best-fit agent or combination of agents, and manages conversation flow across the entire platform.',
+      'Primary routing agent — analyzes user intent, selects the best-fit specialist agent, and manages conversation flow across the entire platform.',
+  },
+  {
+    icon: '🔍',
+    name: 'Discovery Agent',
+    description:
+      'Azure resource discovery and inventory — list VMs, storage, subscriptions; filter by type, location, or tags; resource health monitoring and dependency mapping.',
+  },
+  {
+    icon: '⚙️',
+    name: 'Configuration Agent',
+    description:
+      'Azure subscription and service principal configuration — set default subscription, manage tenant and SP credentials, answer questions about platform capabilities.',
+  },
+  {
+    icon: '🏗️',
+    name: 'Infrastructure Agent',
+    description:
+      'Custom IaC generation (Bicep/Terraform), Azure resource provisioning with compliance enhancement, Azure Arc onboarding, and scaling analysis.',
+  },
+  {
+    icon: '🌍',
+    name: 'Environment Agent',
+    description:
+      'Template-based environment provisioning — landing zones, AKS clusters, web apps from pre-approved Platform Engineering templates. Drift detection and remediation.',
+  },
+  {
+    icon: '💰',
+    name: 'Cost Management Agent',
+    description:
+      'Real-time Azure cost analysis, budget monitoring, rightsizing recommendations, spending forecasts, and anomaly detection.',
   },
   {
     icon: '🛡️',
     name: 'Compliance Agent',
     description:
-      'ATO / STIG compliance scanning, FedRAMP and CMMC assessment, security control validation, POAM tracking, and automated audit documentation generation.',
+      'NIST 800-53, FedRAMP, DoD IL5/IL6, and STIG compliance scanning. Automated remediation planning and execution. SSP, SAR, and POA&M documentation generation.',
   },
   {
-    icon: '☁️',
-    name: 'Resource Agent',
+    icon: '📚',
+    name: 'KnowledgeBase Agent',
     description:
-      'Azure resource discovery and inventory management, Resource Graph queries, cross-subscription analysis, tagging, and resource lifecycle reporting.',
+      'Educational content about NIST controls, STIG, RMF, FedRAMP, and DoD Impact Levels. Explains frameworks and requirements — does NOT scan environments.',
   },
   {
-    icon: '🚀',
-    name: 'Deployment Agent',
-    description:
-      'Container and AKS deployments, blue-green and canary rollouts, Helm chart management, deployment health monitoring, and rollback orchestration.',
-  },
-  {
-    icon: '💰',
-    name: 'Cost Agent',
-    description:
-      'Real-time cost monitoring, budget alert management, rightsizing recommendations, reserved instance analysis, and monthly optimization reporting.',
-  },
-  {
-    icon: '🔒',
-    name: 'Security Agent',
-    description:
-      'Security posture assessment, vulnerability scanning, policy enforcement, Defender for Cloud integration, and threat detection playbooks.',
-  },
-  {
-    icon: '⚙️',
+    icon: '🔧',
     name: 'DevOps Agent',
     description:
-      'GitHub and Azure DevOps automation — repository management, PR workflows, CI/CD pipelines, issue tracking, team management, and action triggers.',
-  },
-  {
-    icon: '📐',
-    name: 'IaC Agent',
-    description:
-      'Infrastructure as Code generation — Bicep, Terraform, and ARM templates with validation, best-practice enforcement, and module recommendations.',
+      'GitHub and Azure DevOps automation — repository management, pull requests, issues, CI/CD pipeline triggers, team management, and action runs.',
   },
 ];
 
@@ -123,6 +129,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
   const {
     settings,
     updateSettings,
+    updateAzure,
     updateAdo,
     updateGitHub,
     updateOpenAI,
@@ -131,6 +138,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
   } = useSettings();
 
   const [activeTab, setActiveTab] = useState<Tab>('devops');
+  const [azureTestStatus, setAzureTestStatus] = useState<TestStatus>('idle');
+  const [azureTestMsg, setAzureTestMsg] = useState('');
   const [githubTestStatus, setGithubTestStatus] = useState<TestStatus>('idle');
   const [githubTestMsg, setGithubTestMsg] = useState('');
   const [adoTestStatus, setAdoTestStatus] = useState<TestStatus>('idle');
@@ -143,6 +152,41 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
   const flash = (label = 'Saved') => {
     setSaved(label);
     setTimeout(() => setSaved(''), 2500);
+  };
+
+  const testAzure = async () => {
+    setAzureTestStatus('testing');
+    setAzureTestMsg('');
+    try {
+      const result = await chatApi.testAzureConnection(
+        settings.azure.tenantId,
+        settings.azure.subscriptionId,
+        settings.azure.clientId,
+        settings.azure.clientSecret,
+        settings.azure.cloudEnvironment,
+      );
+      setAzureTestStatus(result.success ? 'success' : 'error');
+      setAzureTestMsg(result.message ?? (result.success ? 'Connected' : 'Failed'));
+    } catch (e: any) {
+      setAzureTestStatus('error');
+      setAzureTestMsg(e?.response?.data?.error ?? e?.message ?? 'Connection failed');
+    }
+  };
+
+  const saveAzure = async () => {
+    try {
+      await chatApi.updateAzureSettings(
+        settings.azure.tenantId,
+        settings.azure.subscriptionId,
+        settings.azure.clientId,
+        settings.azure.clientSecret,
+        settings.azure.cloudEnvironment,
+        settings.azure.useManagedIdentity,
+      );
+      flash('Azure saved');
+    } catch (e) {
+      console.error('Failed to save Azure settings', e);
+    }
   };
 
   const testGitHub = async () => {
@@ -299,6 +343,114 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
           {/* ==================== DEVOPS & AI ==================== */}
           {activeTab === 'devops' && (
             <>
+              {/* Azure Subscription */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <Database size={20} className="text-blue-500" />
+                  <h2 className="text-base font-semibold">Azure Subscription</h2>
+                  <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${settings.azure.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
+                    {settings.azure.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+
+                <div className={sectionCard}>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Azure integration</label>
+                    <Toggle checked={settings.azure.enabled} onChange={() => updateAzure({ enabled: !settings.azure.enabled })} />
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Cloud Environment</label>
+                    <select
+                      value={settings.azure.cloudEnvironment}
+                      onChange={e => updateAzure({ cloudEnvironment: e.target.value })}
+                      className={inputCls}
+                    >
+                      <option value="AzureGovernment">Azure Government (MAG)</option>
+                      <option value="AzureCloud">Azure Commercial</option>
+                      <option value="AzureChina">Azure China</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelCls}>Tenant ID</label>
+                      <input
+                        type="text"
+                        value={settings.azure.tenantId}
+                        onChange={e => updateAzure({ tenantId: e.target.value })}
+                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                        className={inputCls}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Subscription ID</label>
+                      <input
+                        type="text"
+                        value={settings.azure.subscriptionId}
+                        onChange={e => updateAzure({ subscriptionId: e.target.value })}
+                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Use Managed Identity</label>
+                      <p className="text-xs text-gray-400 mt-0.5">Disable to use a Service Principal instead</p>
+                    </div>
+                    <Toggle checked={settings.azure.useManagedIdentity} onChange={() => updateAzure({ useManagedIdentity: !settings.azure.useManagedIdentity })} />
+                  </div>
+
+                  {!settings.azure.useManagedIdentity && (
+                    <>
+                      <div>
+                        <label className={labelCls}>Client ID <span className="font-normal text-gray-400">(Service Principal App ID)</span></label>
+                        <input
+                          type="text"
+                          value={settings.azure.clientId}
+                          onChange={e => updateAzure({ clientId: e.target.value })}
+                          placeholder="Service Principal Application ID"
+                          className={inputCls}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Client Secret</label>
+                        <PasswordInput
+                          value={settings.azure.clientSecret}
+                          onChange={v => updateAzure({ clientSecret: v })}
+                          placeholder="Service Principal secret"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <TestButton status={azureTestStatus} onTest={testAzure} label="Test Azure Connection" />
+                    <button
+                      onClick={saveAzure}
+                      className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                    >
+                      Save
+                    </button>
+                    {azureTestMsg && (
+                      <span className={`text-xs ${azureTestStatus === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                        {azureTestMsg}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
+                    ℹ️ Credentials are stored locally in your browser. For server-side access, set{' '}
+                    <code className="font-mono">AZURE_TENANT_ID</code>,{' '}
+                    <code className="font-mono">AZURE_CLIENT_ID</code>,{' '}
+                    <code className="font-mono">AZURE_CLIENT_SECRET</code> in your{' '}
+                    <code className="font-mono">.env</code> file.
+                  </div>
+                </div>
+              </section>
+
               {/* GitHub */}
               <section className="space-y-3">
                 <div className="flex items-center gap-2.5">
