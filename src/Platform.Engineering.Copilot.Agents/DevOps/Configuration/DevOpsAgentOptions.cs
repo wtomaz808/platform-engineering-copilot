@@ -31,6 +31,9 @@ public class AzureDevOpsOptions
     public string? DefaultProject { get; set; }
     public string DefaultProcessTemplate { get; set; } = "Agile";
     public bool RequirePullRequests { get; set; } = true;
+    public string? ServerUrl { get; set; }
+    public string? AccessToken { get; set; }
+    public string? DefaultCollection { get; set; }
 }
 
 public class DefaultTemplates

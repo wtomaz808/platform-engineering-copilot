@@ -108,4 +108,10 @@ public interface IAzureClientFactory
     /// </summary>
     /// <returns>The user principal name (email/UPN), or null if not available.</returns>
     string? GetUserPrincipal();
+
+    /// <summary>
+    /// Invalidates cached credentials and clients so the next call picks up new settings.
+    /// Called when Azure settings are updated at runtime via the Admin Panel.
+    /// </summary>
+    void InvalidateCredentials();
 }

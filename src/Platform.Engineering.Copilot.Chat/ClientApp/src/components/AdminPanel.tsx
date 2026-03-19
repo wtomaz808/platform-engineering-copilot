@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, GitBranch, Cloud, Info, ChevronRight, ChevronDown, Check } from 'lucide-react';
+import { X, Moon, Sun, GitBranch, Cloud, Info, ChevronRight, ChevronDown, Check, Shield, Loader2 } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { chatApi } from '../services/chatApi';
 
@@ -10,11 +10,14 @@ interface AdminPanelProps {
 type Tab = 'appearance' | 'integrations' | 'about';
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
-  const { settings, updateSettings, updateAdo, updateGitHub } = useSettings();
+  const { settings, updateSettings, updateAdo, updateGitHub, updateAzure } = useSettings();
   const [activeTab, setActiveTab] = useState<Tab>('appearance');
   const [adoExpanded, setAdoExpanded] = useState(settings.ado.enabled);
   const [githubExpanded, setGithubExpanded] = useState(settings.github.enabled);
+  const [azureExpanded, setAzureExpanded] = useState(settings.azure.enabled);
   const [saved, setSaved] = useState(false);
+  const [azureTestResult, setAzureTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [azureTesting, setAzureTesting] = useState(false);
 
   const showSaved = () => {
     setSaved(true);
@@ -30,8 +33,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
         console.error('Failed to sync GitHub settings to backend:', e);
       }
     }
+    // Sync Azure settings to backend if enabled
+    if (settings.azure.enabled) {
+      try {
+        await chatApi.updateAzureSettings(
+          settings.azure.authMethod,
+          settings.azure.tenantId,
+          settings.azure.subscriptionId,
+          settings.azure.username,
+          settings.azure.password,
+          settings.azure.clientId,
+          settings.azure.clientSecret,
+          settings.azure.cloudEnvironment,
+          settings.azure.useManagedIdentity,
+        );
+      } catch (e) {
+        console.error('Failed to sync Azure settings to backend:', e);
+      }
+    }
     showSaved();
     onClose();
+  };
+
+  const handleTestAzure = async () => {
+    setAzureTesting(true);
+    setAzureTestResult(null);
+    try {
+      const result = await chatApi.testAzureConnection(
+        settings.azure.authMethod,
+        settings.azure.tenantId,
+        settings.azure.subscriptionId,
+        settings.azure.username,
+        settings.azure.password,
+        settings.azure.clientId,
+        settings.azure.clientSecret,
+        settings.azure.cloudEnvironment,
+      );
+      setAzureTestResult({ success: result.success, message: result.message || '' });
+    } catch (e: any) {
+      setAzureTestResult({ success: false, message: e?.response?.data?.message || e?.message || 'Connection test failed' });
+    } finally {
+      setAzureTesting(false);
+    }
   };
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -157,32 +200,65 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                       </div>
 
                       <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Server Type</label>
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                          {([
+                            { key: 'services' as const, label: 'Azure DevOps Services', desc: 'Cloud-hosted (dev.azure.us)' },
+                            { key: 'server' as const, label: 'Azure DevOps Server', desc: 'On-premises / self-hosted' },
+                          ]).map(opt => (
+                            <button
+                              key={opt.key}
+                              onClick={() => updateAdo({ serverType: opt.key })}
+                              className={`p-2.5 rounded-lg border text-left transition-colors ${
+                                settings.ado.serverType === opt.key
+                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-500'
+                                  : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+                              }`}
+                            >
+                              <p className={`text-xs font-medium ${
+                                settings.ado.serverType === opt.key
+                                  ? 'text-blue-700 dark:text-blue-400'
+                                  : 'text-gray-700 dark:text-gray-300'
+                              }`}>{opt.label}</p>
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{opt.desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
                         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          ADO Server URL
-                          <span className="ml-1 text-gray-400 font-normal">(e.g. https://dev.azure.com/yourorg)</span>
+                          {settings.ado.serverType === 'server' ? 'Server URL' : 'Organization URL'}
+                          <span className="ml-1 text-gray-400 font-normal">
+                            {settings.ado.serverType === 'server'
+                              ? '(e.g. https://your-server:port/tfs)'
+                              : '(e.g. https://dev.azure.us/yourorg)'}
+                          </span>
                         </label>
                         <input
                           type="url"
                           value={settings.ado.serverUrl}
                           onChange={e => updateAdo({ serverUrl: e.target.value })}
-                          placeholder="https://dev.azure.com/yourorg"
+                          placeholder={settings.ado.serverType === 'server' ? 'https://your-server:port/tfs' : 'https://dev.azure.us/yourorg'}
                           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          ADO Portal URL
-                          <span className="ml-1 text-gray-400 font-normal">(optional override)</span>
-                        </label>
-                        <input
-                          type="url"
-                          value={settings.ado.portalUrl}
-                          onChange={e => updateAdo({ portalUrl: e.target.value })}
-                          placeholder="https://yourorg.visualstudio.com"
-                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
+                      {settings.ado.serverType === 'server' && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Collection
+                            <span className="ml-1 text-gray-400 font-normal">(e.g. DefaultCollection)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={settings.ado.portalUrl}
+                            onChange={e => updateAdo({ portalUrl: e.target.value })}
+                            placeholder="DefaultCollection"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -247,6 +323,244 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                         <p className="text-xs text-gray-400 mt-1">Token is sent to the backend to authenticate GitHub API calls.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Azure */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setAzureExpanded(!azureExpanded)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${settings.azure.enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+                      <Shield size={16} className="text-blue-500" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Azure</span>
+                      {settings.azure.enabled && (
+                        <span className="text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">Enabled</span>
+                      )}
+                    </div>
+                    {azureExpanded ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />}
+                  </button>
+
+                  {azureExpanded && (
+                    <div className="p-4 space-y-4 bg-white dark:bg-gray-900">
+                      {/* Enable toggle */}
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm text-gray-700 dark:text-gray-300">Enable Azure integration</label>
+                        <button
+                          onClick={() => updateAzure({ enabled: !settings.azure.enabled })}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            settings.azure.enabled ? 'bg-blue-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
+                            settings.azure.enabled ? 'translate-x-5' : 'translate-x-1'
+                          }`} />
+                        </button>
+                      </div>
+
+                      {/* Cloud Environment */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Cloud Environment</label>
+                        <select
+                          value={settings.azure.cloudEnvironment}
+                          onChange={e => updateAzure({ cloudEnvironment: e.target.value })}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="AzureGovernment">Azure Government (US Gov)</option>
+                          <option value="AzureCloud">Azure Commercial (Public)</option>
+                        </select>
+                      </div>
+
+                      {/* Tenant ID */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Tenant ID
+                          <span className="ml-1 text-gray-400 font-normal">(Entra ID tenant GUID)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.azure.tenantId}
+                          onChange={e => updateAzure({ tenantId: e.target.value })}
+                          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                        />
+                      </div>
+
+                      {/* Subscription ID */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Subscription ID
+                          <span className="ml-1 text-gray-400 font-normal">(target Azure subscription)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.azure.subscriptionId}
+                          onChange={e => updateAzure({ subscriptionId: e.target.value })}
+                          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                        />
+                      </div>
+
+                      {/* Auth Method Selector */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Authentication Method</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([
+                            { key: 'credentials' as const, label: 'Username / Password', desc: 'Your Azure login' },
+                            { key: 'servicePrincipal' as const, label: 'Service Principal', desc: 'App ID + Secret' },
+                            { key: 'managedIdentity' as const, label: 'Managed Identity', desc: 'Azure-hosted apps' },
+                          ]).map(method => (
+                            <button
+                              key={method.key}
+                              onClick={() => updateAzure({
+                                authMethod: method.key,
+                                useManagedIdentity: method.key === 'managedIdentity',
+                              })}
+                              className={`p-2.5 rounded-lg border text-left transition-colors ${
+                                settings.azure.authMethod === method.key
+                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-500'
+                                  : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+                              }`}
+                            >
+                              <p className={`text-xs font-medium ${
+                                settings.azure.authMethod === method.key
+                                  ? 'text-blue-700 dark:text-blue-400'
+                                  : 'text-gray-700 dark:text-gray-300'
+                              }`}>{method.label}</p>
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{method.desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* === Username / Password fields === */}
+                      {settings.azure.authMethod === 'credentials' && (
+                        <>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-700 dark:text-blue-400">
+                              Enter your Azure / Entra ID login credentials. The account needs <strong>Contributor</strong> role on the target subscription.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Username
+                              <span className="ml-1 text-gray-400 font-normal">(e.g. user@tenant.onmicrosoft.us)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.azure.username}
+                              onChange={e => updateAzure({ username: e.target.value })}
+                              placeholder="user@yourtenant.onmicrosoft.us"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Password
+                            </label>
+                            <input
+                              type="password"
+                              value={settings.azure.password}
+                              onChange={e => updateAzure({ password: e.target.value })}
+                              placeholder="••••••••••••"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Client ID
+                              <span className="ml-1 text-gray-400 font-normal">(optional — public app registration, uses Azure PowerShell default if blank)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.azure.clientId}
+                              onChange={e => updateAzure({ clientId: e.target.value })}
+                              placeholder="Leave blank to use default"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* === Service Principal fields === */}
+                      {settings.azure.authMethod === 'servicePrincipal' && (
+                        <>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-700 dark:text-blue-400">
+                              Enter your Service Principal credentials. The SP needs <strong>Contributor</strong> role on the target subscription.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Client ID
+                              <span className="ml-1 text-gray-400 font-normal">(Service Principal App ID)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.azure.clientId}
+                              onChange={e => updateAzure({ clientId: e.target.value })}
+                              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Client Secret
+                              <span className="ml-1 text-gray-400 font-normal">(Service Principal secret value)</span>
+                            </label>
+                            <input
+                              type="password"
+                              value={settings.azure.clientSecret}
+                              onChange={e => updateAzure({ clientSecret: e.target.value })}
+                              placeholder="••••••••••••••••••••"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* === Managed Identity info === */}
+                      {settings.azure.authMethod === 'managedIdentity' && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                          <p className="text-xs text-blue-700 dark:text-blue-400">
+                            Managed Identity is auto-detected when running in Azure (ACI, AKS, App Service).
+                            No credentials needed — just ensure the identity has <strong>Contributor</strong> role on the subscription.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* RBAC recommendation */}
+                      <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          <strong>RBAC:</strong> The identity needs <strong>Contributor</strong> role on the target subscription for list, monitor, deploy, and delete operations.
+                          Add <strong>User Access Administrator</strong> if RBAC management is also needed.
+                        </p>
+                      </div>
+
+                      {/* Test Connection */}
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={handleTestAzure}
+                          disabled={azureTesting || !settings.azure.tenantId || !settings.azure.subscriptionId}
+                          className="px-4 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          {azureTesting ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
+                          {azureTesting ? 'Testing...' : 'Test Connection'}
+                        </button>
+                        {azureTestResult && (
+                          <span className={`text-xs ${azureTestResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                            {azureTestResult.message}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

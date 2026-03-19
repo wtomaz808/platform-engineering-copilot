@@ -159,8 +159,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
     setAzureTestMsg('');
     try {
       const result = await chatApi.testAzureConnection(
+        settings.azure.authMethod || 'credentials',
         settings.azure.tenantId,
         settings.azure.subscriptionId,
+        settings.azure.username || '',
+        settings.azure.password || '',
         settings.azure.clientId,
         settings.azure.clientSecret,
         settings.azure.cloudEnvironment,
@@ -176,8 +179,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
   const saveAzure = async () => {
     try {
       await chatApi.updateAzureSettings(
+        settings.azure.authMethod || 'credentials',
         settings.azure.tenantId,
         settings.azure.subscriptionId,
+        settings.azure.username || '',
+        settings.azure.password || '',
         settings.azure.clientId,
         settings.azure.clientSecret,
         settings.azure.cloudEnvironment,
@@ -215,7 +221,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
     setAdoTestStatus('testing');
     setAdoTestMsg('');
     try {
-      const result = await chatApi.testAdoConnection(settings.ado.serverUrl, settings.ado.token);
+      const collection = (settings.ado.serverType || 'services') === 'server' ? (settings.ado.portalUrl || 'DefaultCollection') : undefined;
+      const result = await chatApi.testAdoConnection(settings.ado.serverUrl, settings.ado.token, collection);
       setAdoTestStatus(result.success ? 'success' : 'error');
       setAdoTestMsg(result.message ?? (result.success ? 'Connected' : 'Failed'));
     } catch (e: any) {
@@ -226,7 +233,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
 
   const saveAdo = async () => {
     try {
-      await chatApi.updateAdoSettings(settings.ado.serverUrl, settings.ado.token, settings.ado.portalUrl);
+      const sType = settings.ado.serverType || 'services';
+      const collection = sType === 'server' ? (settings.ado.portalUrl || 'DefaultCollection') : undefined;
+      await chatApi.updateAdoSettings(settings.ado.serverUrl, settings.ado.token, settings.ado.portalUrl, sType, collection);
       flash('ADO saved');
     } catch (e) {
       console.error('Failed to save ADO settings', e);
@@ -368,7 +377,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                     >
                       <option value="AzureGovernment">Azure Government (MAG)</option>
                       <option value="AzureCloud">Azure Commercial</option>
-                      <option value="AzureChina">Azure China</option>
                     </select>
                   </div>
 
@@ -395,23 +403,88 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Use Managed Identity</label>
-                      <p className="text-xs text-gray-400 mt-0.5">Disable to use a Service Principal instead</p>
+                  {/* Auth Method Selector */}
+                  <div>
+                    <label className={labelCls}>Authentication Method</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { key: 'credentials' as const, label: 'Username / Password', desc: 'Your Azure login' },
+                        { key: 'servicePrincipal' as const, label: 'Service Principal', desc: 'App ID + Secret' },
+                        { key: 'managedIdentity' as const, label: 'Managed Identity', desc: 'Azure-hosted apps' },
+                      ]).map(method => (
+                        <button
+                          key={method.key}
+                          onClick={() => updateAzure({
+                            authMethod: method.key,
+                            useManagedIdentity: method.key === 'managedIdentity',
+                          })}
+                          className={`p-2.5 rounded-lg border text-left transition-colors ${
+                            settings.azure.authMethod === method.key
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-500'
+                              : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+                          }`}
+                        >
+                          <p className={`text-xs font-medium ${
+                            settings.azure.authMethod === method.key
+                              ? 'text-blue-700 dark:text-blue-400'
+                              : 'text-gray-700 dark:text-gray-300'
+                          }`}>{method.label}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{method.desc}</p>
+                        </button>
+                      ))}
                     </div>
-                    <Toggle checked={settings.azure.useManagedIdentity} onChange={() => updateAzure({ useManagedIdentity: !settings.azure.useManagedIdentity })} />
                   </div>
 
-                  {!settings.azure.useManagedIdentity && (
+                  {/* Username / Password fields */}
+                  {settings.azure.authMethod === 'credentials' && (
                     <>
+                      <div className="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                        Enter your Azure / Entra ID login credentials. The account needs <strong>Contributor</strong> role on the target subscription.
+                      </div>
+                      <div>
+                        <label className={labelCls}>Username <span className="font-normal text-gray-400">(e.g. user@tenant.onmicrosoft.us)</span></label>
+                        <input
+                          type="text"
+                          value={settings.azure.username}
+                          onChange={e => updateAzure({ username: e.target.value })}
+                          placeholder="user@yourtenant.onmicrosoft.us"
+                          className={inputCls}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Password</label>
+                        <PasswordInput
+                          value={settings.azure.password}
+                          onChange={v => updateAzure({ password: v })}
+                          placeholder="Your Azure password"
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Client ID <span className="font-normal text-gray-400">(optional — uses Azure PowerShell default if blank)</span></label>
+                        <input
+                          type="text"
+                          value={settings.azure.clientId}
+                          onChange={e => updateAzure({ clientId: e.target.value })}
+                          placeholder="Leave blank to use default"
+                          className={inputCls}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Service Principal fields */}
+                  {settings.azure.authMethod === 'servicePrincipal' && (
+                    <>
+                      <div className="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                        Enter your Service Principal credentials. The SP needs <strong>Contributor</strong> role on the target subscription.
+                      </div>
                       <div>
                         <label className={labelCls}>Client ID <span className="font-normal text-gray-400">(Service Principal App ID)</span></label>
                         <input
                           type="text"
                           value={settings.azure.clientId}
                           onChange={e => updateAzure({ clientId: e.target.value })}
-                          placeholder="Service Principal Application ID"
+                          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                           className={inputCls}
                         />
                       </div>
@@ -425,6 +498,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                       </div>
                     </>
                   )}
+
+                  {/* Managed Identity info */}
+                  {settings.azure.authMethod === 'managedIdentity' && (
+                    <div className="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                      Managed Identity is auto-detected when running in Azure (ACI, AKS, App Service).
+                      No credentials needed — ensure the identity has <strong>Contributor</strong> role on the subscription.
+                    </div>
+                  )}
+
+                  {/* RBAC recommendation */}
+                  <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
+                    <strong>RBAC:</strong> The identity needs <strong>Contributor</strong> role on the target subscription.
+                    Add <strong>User Access Administrator</strong> if RBAC management is also needed.
+                  </div>
 
                   <div className="flex flex-wrap items-center gap-3 pt-1">
                     <TestButton status={azureTestStatus} onTest={testAzure} label="Test Azure Connection" />
@@ -441,12 +528,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                     )}
                   </div>
 
-                  <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
-                    ℹ️ Credentials are stored locally in your browser. For server-side access, set{' '}
-                    <code className="font-mono">AZURE_TENANT_ID</code>,{' '}
-                    <code className="font-mono">AZURE_CLIENT_ID</code>,{' '}
-                    <code className="font-mono">AZURE_CLIENT_SECRET</code> in your{' '}
-                    <code className="font-mono">.env</code> file.
+                  <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+                    ℹ️ Credentials are stored locally in your browser and sent to the backend on save.
                   </div>
                 </div>
               </section>
@@ -527,33 +610,83 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                     <Toggle checked={settings.ado.enabled} onChange={() => updateAdo({ enabled: !settings.ado.enabled })} />
                   </div>
 
+                  {/* Server Type Selector */}
+                  <div>
+                    <label className={labelCls}>Server Type</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { key: 'services' as const, label: 'Azure DevOps Services', desc: 'Cloud-hosted (dev.azure.us)' },
+                        { key: 'server' as const, label: 'Azure DevOps Server', desc: 'On-premises / self-hosted' },
+                      ]).map(opt => (
+                        <button
+                          key={opt.key}
+                          onClick={() => updateAdo({ serverType: opt.key })}
+                          className={`p-2.5 rounded-lg border text-left transition-colors ${
+                            (settings.ado.serverType || 'services') === opt.key
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-500'
+                              : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+                          }`}
+                        >
+                          <p className={`text-xs font-medium ${
+                            (settings.ado.serverType || 'services') === opt.key
+                              ? 'text-blue-700 dark:text-blue-400'
+                              : 'text-gray-700 dark:text-gray-300'
+                          }`}>{opt.label}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{opt.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div>
                     <label className={labelCls}>
-                      Organization URL
-                      <span className="ml-1 text-gray-400 font-normal">(e.g. https://dev.azure.com/yourorg)</span>
+                      {(settings.ado.serverType || 'services') === 'server' ? 'Server URL' : 'Organization URL'}
+                      <span className="ml-1 text-gray-400 font-normal">
+                        {(settings.ado.serverType || 'services') === 'server'
+                          ? '(e.g. https://your-server:port/tfs)'
+                          : '(e.g. https://dev.azure.us/yourorg)'}
+                      </span>
                     </label>
                     <input
                       type="url"
                       value={settings.ado.serverUrl}
                       onChange={e => updateAdo({ serverUrl: e.target.value })}
-                      placeholder="https://dev.azure.com/yourorg"
+                      placeholder={(settings.ado.serverType || 'services') === 'server' ? 'https://your-server:port/tfs' : 'https://dev.azure.us/yourorg'}
                       className={inputCls}
                     />
                   </div>
 
-                  <div>
-                    <label className={labelCls}>
-                      Portal URL
-                      <span className="ml-1 text-gray-400 font-normal">(optional override)</span>
-                    </label>
-                    <input
-                      type="url"
-                      value={settings.ado.portalUrl}
-                      onChange={e => updateAdo({ portalUrl: e.target.value })}
-                      placeholder="https://yourorg.visualstudio.com"
-                      className={inputCls}
-                    />
-                  </div>
+                  {(settings.ado.serverType || 'services') === 'server' && (
+                    <div>
+                      <label className={labelCls}>
+                        Collection
+                        <span className="ml-1 text-gray-400 font-normal">(e.g. DefaultCollection)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={settings.ado.portalUrl}
+                        onChange={e => updateAdo({ portalUrl: e.target.value })}
+                        placeholder="DefaultCollection"
+                        className={inputCls}
+                      />
+                    </div>
+                  )}
+
+                  {(settings.ado.serverType || 'services') === 'services' && (
+                    <div>
+                      <label className={labelCls}>
+                        Portal URL
+                        <span className="ml-1 text-gray-400 font-normal">(optional override)</span>
+                      </label>
+                      <input
+                        type="url"
+                        value={settings.ado.portalUrl}
+                        onChange={e => updateAdo({ portalUrl: e.target.value })}
+                        placeholder="https://dev.azure.us/yourorg"
+                        className={inputCls}
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className={labelCls}>Personal Access Token</label>
@@ -563,6 +696,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                       placeholder="ADO PAT"
                     />
                   </div>
+
+                  {(settings.ado.serverType || 'services') === 'server' && (
+                    <div className="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                      For Azure DevOps Server, ensure the PAT has access to the collection specified above.
+                      The full API base will be: <strong>{(settings.ado.serverUrl || 'https://your-server').replace(/\/+$/, '')}/{settings.ado.portalUrl || 'DefaultCollection'}</strong>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap items-center gap-3 pt-1">
                     <TestButton status={adoTestStatus} onTest={testAdo} />
@@ -599,7 +739,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                       type="url"
                       value={settings.openai.endpoint}
                       onChange={e => updateOpenAI({ endpoint: e.target.value })}
-                      placeholder="https://your-resource.openai.azure.com/"
+                      placeholder="https://your-resource.openai.azure.us/"
                       className={inputCls}
                     />
                   </div>

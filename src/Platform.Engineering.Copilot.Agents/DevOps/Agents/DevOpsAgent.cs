@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.Common;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
+using Platform.Engineering.Copilot.Agents.DevOps.Tools.AzureDevOps;
 using Platform.Engineering.Copilot.Agents.DevOps.Tools.GitHub;
 using Platform.Engineering.Copilot.State.Abstractions;
 
@@ -47,6 +48,9 @@ public class DevOpsAgent : BaseAgent
         // GitHub Team Management
         AddGitHubTeamMemberTool addGitHubTeamMemberTool,
         ListGitHubTeamsTool listGitHubTeamsTool,
+        // Azure DevOps Tools
+        ListADOProjectsTool listAdoProjectsTool,
+        ListADORepositoriesTool listAdoRepositoriesTool,
         IAgentStateManager? agentStateManager = null,
         ISharedMemory? sharedMemory = null)
         : base(chatClient, logger, agentStateManager, sharedMemory)
@@ -79,11 +83,12 @@ public class DevOpsAgent : BaseAgent
             RegisterTool(listGitHubTeamsTool);
         }
 
-        // TODO: Register Azure DevOps tools (when implemented)
-        // if (_options.AzureDevOps.Enabled)
-        // {
-        //     RegisterTool(createADORepositoryTool);
-        // }
+        // Register Azure DevOps tools
+        if (_options.AzureDevOps.Enabled)
+        {
+            RegisterTool(listAdoProjectsTool);
+            RegisterTool(listAdoRepositoriesTool);
+        }
 
         Logger.LogInformation("✅ DevOps Agent initialized with {ToolCount} tools (GitHub: {GitHubEnabled}, ADO: {ADOEnabled}, Temperature: {Temperature})",
             RegisteredTools.Count, _options.GitHub.Enabled, _options.AzureDevOps.Enabled, _options.Temperature);

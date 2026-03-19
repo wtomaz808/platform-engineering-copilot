@@ -84,13 +84,14 @@ export const chatApi = {
     };
   },
 
-  async updateAdoSettings(serverUrl: string, accessToken: string, portalUrl?: string): Promise<void> {
-    await apiClient.post('/api/settings/ado', { serverUrl, accessToken, portalUrl });
+  async updateAdoSettings(serverUrl: string, accessToken: string, portalUrl?: string, serverType?: string, collection?: string): Promise<void> {
+    await apiClient.post('/api/settings/ado', { serverUrl, accessToken, portalUrl, serverType, collection });
   },
 
-  async testAdoConnection(serverUrl: string, token: string): Promise<{ success: boolean; message?: string }> {
+  async testAdoConnection(serverUrl: string, token: string, collection?: string): Promise<{ success: boolean; message?: string }> {
     const params = new URLSearchParams({ serverUrl });
     if (token) params.set('token', token);
+    if (collection) params.set('collection', collection);
     const response = await apiClient.get(`/api/settings/ado/test?${params}`);
     return response.data;
   },
@@ -100,27 +101,35 @@ export const chatApi = {
   },
 
   async updateAzureSettings(
+    authMethod: string,
     tenantId: string,
     subscriptionId: string,
+    username: string,
+    password: string,
     clientId: string,
     clientSecret: string,
     cloudEnvironment: string,
     useManagedIdentity: boolean,
   ): Promise<void> {
     await apiClient.post('/api/settings/azure', {
-      tenantId, subscriptionId, clientId, clientSecret, cloudEnvironment, useManagedIdentity,
+      authMethod, tenantId, subscriptionId, username, password,
+      clientId, clientSecret, cloudEnvironment, useManagedIdentity,
     });
   },
 
   async testAzureConnection(
+    authMethod: string,
     tenantId: string,
     subscriptionId: string,
+    username: string,
+    password: string,
     clientId: string,
     clientSecret: string,
     cloudEnvironment: string,
   ): Promise<{ success: boolean; message?: string }> {
     const response = await apiClient.post('/api/settings/azure/test', {
-      tenantId, subscriptionId, clientId, clientSecret, cloudEnvironment,
+      authMethod, tenantId, subscriptionId, username, password,
+      clientId, clientSecret, cloudEnvironment,
     });
     return response.data;
   },

@@ -164,6 +164,21 @@ public class AzureClientFactory : IAzureClientFactory
     }
 
     /// <inheritdoc />
+    public void InvalidateCredentials()
+    {
+        lock (_armClientLock)
+        {
+            _armClient = null;
+        }
+        lock (_graphClientLock)
+        {
+            _graphClient = null;
+        }
+        _defaultCredential = null;
+        _logger.LogInformation("🔄 Azure credentials invalidated — next request will use updated settings");
+    }
+
+    /// <inheritdoc />
     public string GetGraphBaseUrl()
     {
         return CloudEnvironment switch
@@ -200,27 +215,41 @@ public class AzureClientFactory : IAzureClientFactory
 
     private TokenCredential CreateDefaultCredential()
     {
-        _logger.LogInformation("Creating default Azure credential for {CloudEnvironment}...", CloudEnvironment);
+        _logger.LogInformation("Creating default Azure credential for {CloudEnvironment} (AuthMethod: {AuthMethod})...",
+            CloudEnvironment, _options.AuthMethod ?? "auto");
 
-        var credentialOptions = new DefaultAzureCredentialOptions
-        {
-            AuthorityHost = GetAuthorityHost(),
-            ExcludeEnvironmentCredential = false,
-            ExcludeAzureCliCredential = false,
-            ExcludeManagedIdentityCredential = !_options.UseManagedIdentity,
-            ExcludeVisualStudioCredential = true,
-            ExcludeVisualStudioCodeCredential = true,
-            ExcludeSharedTokenCacheCredential = true,
-            ExcludeInteractiveBrowserCredential = true
-        };
+        var authMethod = (_options.AuthMethod ?? "").ToLowerInvariant();
 
-        if (!string.IsNullOrEmpty(_options.TenantId))
+        // 1. Username/Password (ROPC) — the default for interactive users
+        if (authMethod == "credentials" &&
+            !string.IsNullOrEmpty(_options.Username) &&
+            !string.IsNullOrEmpty(_options.Password) &&
+            !string.IsNullOrEmpty(_options.TenantId))
         {
-            credentialOptions.TenantId = _options.TenantId;
+            // Use provided ClientId or fall back to well-known Azure PowerShell public client
+            var clientId = !string.IsNullOrEmpty(_options.ClientId)
+                ? _options.ClientId
+                : "1950a258-227b-4e31-a9cf-717495945fc2";
+
+            _logger.LogInformation(
+                "🔐 Using Username/Password credential ({Username}) for {CloudEnvironment}",
+                _options.Username,
+                CloudEnvironment);
+
+            return new UsernamePasswordCredential(
+                _options.Username,
+                _options.Password,
+                _options.TenantId,
+                clientId,
+                new UsernamePasswordCredentialOptions
+                {
+                    AuthorityHost = GetAuthorityHost()
+                });
         }
 
-        // If service principal credentials are provided, use ClientSecretCredential
-        if (!_options.UseManagedIdentity &&
+        // 2. Service Principal (ClientSecretCredential)
+        if ((authMethod == "serviceprincipal" || string.IsNullOrEmpty(authMethod)) &&
+            !_options.UseManagedIdentity &&
             !string.IsNullOrEmpty(_options.ClientId) &&
             !string.IsNullOrEmpty(_options.ClientSecret) &&
             !string.IsNullOrEmpty(_options.TenantId))
@@ -238,6 +267,24 @@ public class AzureClientFactory : IAzureClientFactory
                 {
                     AuthorityHost = GetAuthorityHost()
                 });
+        }
+
+        // 3. Managed Identity or DefaultAzureCredential fallback
+        var credentialOptions = new DefaultAzureCredentialOptions
+        {
+            AuthorityHost = GetAuthorityHost(),
+            ExcludeEnvironmentCredential = false,
+            ExcludeAzureCliCredential = false,
+            ExcludeManagedIdentityCredential = !_options.UseManagedIdentity,
+            ExcludeVisualStudioCredential = true,
+            ExcludeVisualStudioCodeCredential = true,
+            ExcludeSharedTokenCacheCredential = true,
+            ExcludeInteractiveBrowserCredential = true
+        };
+
+        if (!string.IsNullOrEmpty(_options.TenantId))
+        {
+            credentialOptions.TenantId = _options.TenantId;
         }
 
         _logger.LogInformation(

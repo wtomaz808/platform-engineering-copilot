@@ -1,8 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+export type AzureAuthMethod = 'credentials' | 'servicePrincipal' | 'managedIdentity';
+
 export interface AzureSettings {
+  authMethod: AzureAuthMethod;
   tenantId: string;
   subscriptionId: string;
+  username: string;
+  password: string;
   clientId: string;
   clientSecret: string;
   cloudEnvironment: string;
@@ -10,7 +15,10 @@ export interface AzureSettings {
   enabled: boolean;
 }
 
+export type AdoServerType = 'services' | 'server';
+
 export interface AdoSettings {
+  serverType: AdoServerType;
   serverUrl: string;
   portalUrl: string;
   token: string;
@@ -55,8 +63,11 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
   darkMode: false,
   azure: {
+    authMethod: 'servicePrincipal',
     tenantId: '',
     subscriptionId: '',
+    username: '',
+    password: '',
     clientId: '',
     clientSecret: '',
     cloudEnvironment: 'AzureGovernment',
@@ -64,6 +75,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     enabled: false,
   },
   ado: {
+    serverType: 'services',
     serverUrl: '',
     portalUrl: '',
     token: '',

@@ -349,13 +349,34 @@ public class SettingsController : ControllerBase
     }
 
     /// <summary>
-    /// Save Azure DevOps settings (currently stored client-side; endpoint is reserved for future persistence).
+    /// Save Azure DevOps settings — proxies to the MCP server where agents run.
     /// </summary>
     [HttpPost("ado")]
-    public IActionResult UpdateAdoSettings([FromBody] AdoSettingsRequest request)
+    public async Task<IActionResult> UpdateAdoSettings(
+        [FromBody] AdoSettingsRequest request,
+        [FromServices] IHttpClientFactory httpClientFactory,
+        [FromServices] IConfiguration configuration)
     {
-        _logger.LogInformation("ADO settings update received. Org: {Org}", request.ServerUrl);
-        return Ok(new { success = true });
+        var mcpBaseUrl = configuration["McpServer:BaseUrl"] ?? "http://platform-mcp:5100";
+        try
+        {
+            using var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(10);
+            var resp = await client.PostAsJsonAsync($"{mcpBaseUrl}/settings/ado", request);
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("MCP ADO settings proxy returned {Status}: {Body}", resp.StatusCode, body);
+                return StatusCode((int)resp.StatusCode, body);
+            }
+            _logger.LogInformation("ADO settings forwarded to MCP. Server: {Url}", request.ServerUrl);
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to forward ADO settings to MCP server at {Url}", mcpBaseUrl);
+            return StatusCode(502, new { error = "Could not reach MCP server", detail = ex.Message });
+        }
     }
 
     /// <summary>
@@ -365,6 +386,7 @@ public class SettingsController : ControllerBase
     public async Task<IActionResult> TestAdoConnection(
         [FromQuery] string? serverUrl,
         [FromQuery] string? token,
+        [FromQuery] string? collection,
         [FromServices] IHttpClientFactory httpClientFactory)
     {
         if (string.IsNullOrWhiteSpace(serverUrl))
@@ -375,9 +397,14 @@ public class SettingsController : ControllerBase
             using var client = httpClientFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(15);
 
-            // Normalise URL — ensure it ends without trailing slash, then append projects API
+            // Normalise URL — ensure it ends without trailing slash
             var baseUrl = serverUrl.TrimEnd('/');
-            var apiUrl = $"{baseUrl}/_apis/projects?api-version=7.0&$top=1";
+
+            // For Azure DevOps Server, include the collection in the path
+            if (!string.IsNullOrWhiteSpace(collection))
+            {
+                baseUrl = $"{baseUrl}/{collection.Trim('/')}";
+            }
 
             if (!string.IsNullOrWhiteSpace(token))
             {
@@ -386,7 +413,11 @@ public class SettingsController : ControllerBase
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", encoded);
             }
 
-            var resp = await client.GetAsync(apiUrl);
+            _logger.LogInformation("ADO test: calling {Url}", $"{baseUrl}/_apis/connectionData");
+
+            // Use _apis/connectionData — the most universal ADO Server endpoint,
+            // works on all on-prem versions without query parameters.
+            var resp = await client.GetAsync($"{baseUrl}/_apis/connectionData");
             if (resp.IsSuccessStatusCode)
             {
                 return Ok(new { success = true, message = "Connected to Azure DevOps successfully" });
@@ -394,7 +425,11 @@ public class SettingsController : ControllerBase
 
             var body = await resp.Content.ReadAsStringAsync();
             _logger.LogWarning("ADO test returned {Status}: {Body}", resp.StatusCode, body);
-            return StatusCode((int)resp.StatusCode, new { success = false, error = $"ADO returned {(int)resp.StatusCode}" });
+
+            // Truncate body for the UI error message to keep it readable
+            var snippet = body.Length > 300 ? body[..300] + "…" : body;
+            return StatusCode((int)resp.StatusCode,
+                new { success = false, error = $"ADO returned {(int)resp.StatusCode}: {snippet}" });
         }
         catch (Exception ex)
         {
@@ -445,7 +480,10 @@ public class SettingsController : ControllerBase
     /// Full token acquisition requires the Azure SDK on the MCP tier.
     /// </summary>
     [HttpPost("azure/test")]
-    public IActionResult TestAzureConnection([FromBody] AzureSettingsRequest request)
+    public async Task<IActionResult> TestAzureConnection(
+        [FromBody] AzureSettingsRequest request,
+        [FromServices] IHttpClientFactory httpClientFactory,
+        [FromServices] IConfiguration configuration)
     {
         if (!string.IsNullOrWhiteSpace(request.TenantId) && !Guid.TryParse(request.TenantId, out _))
             return BadRequest(new { success = false, message = "Tenant ID must be a valid GUID." });
@@ -456,12 +494,34 @@ public class SettingsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(request.ClientId) && !Guid.TryParse(request.ClientId, out _))
             return BadRequest(new { success = false, message = "Client ID must be a valid GUID." });
 
-        var cloud = request.CloudEnvironment ?? "AzureCloud";
-        return Ok(new
+        // First save the settings to MCP so it uses the new credentials for the test
+        var mcpBaseUrl = configuration["McpServer:BaseUrl"] ?? "http://platform-mcp:5100";
+        try
         {
-            success = true,
-            message = $"Format validated for {cloud}. Full connectivity test is performed by the backend agents at runtime.",
-        });
+            using var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(10);
+            await client.PostAsJsonAsync($"{mcpBaseUrl}/settings/azure", request);
+        }
+        catch
+        {
+            // MCP unavailable — can't test live connectivity
+            return Ok(new { success = false, message = "MCP server unavailable. Save settings and try again after starting all services." });
+        }
+
+        // Now ask MCP to test the connection (it will use the just-updated credentials)
+        try
+        {
+            using var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+            var testResponse = await client.PostAsJsonAsync($"{mcpBaseUrl}/settings/azure/test", request);
+            var result = await testResponse.Content.ReadFromJsonAsync<object>();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Azure connectivity test failed");
+            return Ok(new { success = false, message = $"Connection test failed: {ex.Message}" });
+        }
     }
 }
 
@@ -478,6 +538,8 @@ public class AdoSettingsRequest
     public string? ServerUrl { get; set; }
     public string? PortalUrl { get; set; }
     public string? AccessToken { get; set; }
+    public string? ServerType { get; set; }
+    public string? Collection { get; set; }
 }
 
 /// <summary>Request model for updating OpenAI settings</summary>
@@ -489,11 +551,14 @@ public class OpenAISettingsRequest
     public string? EmbeddingDeployment { get; set; }
 }
 
-/// <summary>Request model for updating Azure subscription / service principal settings</summary>
+/// <summary>Request model for updating Azure subscription / credential settings</summary>
 public class AzureSettingsRequest
 {
+    public string? AuthMethod { get; set; }
     public string? TenantId { get; set; }
     public string? SubscriptionId { get; set; }
+    public string? Username { get; set; }
+    public string? Password { get; set; }
     public string? ClientId { get; set; }
     public string? ClientSecret { get; set; }
     public string? CloudEnvironment { get; set; }

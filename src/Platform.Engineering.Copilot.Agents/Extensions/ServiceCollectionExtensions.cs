@@ -23,6 +23,7 @@ using Platform.Engineering.Copilot.Agents.CostManagement.State;
 using Platform.Engineering.Copilot.Agents.CostManagement.Tools;
 using Platform.Engineering.Copilot.Agents.DevOps.Agents;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
+using Platform.Engineering.Copilot.Agents.DevOps.Tools.AzureDevOps;
 using Platform.Engineering.Copilot.Agents.DevOps.Tools.GitHub;
 using Platform.Engineering.Copilot.Agents.Discovery.Agents;
 using Platform.Engineering.Copilot.Agents.Discovery.Configuration;
@@ -637,6 +638,10 @@ public static class ServiceCollectionExtensions
         // services.AddScoped<CreateADORepositoryTool>();
         // services.AddScoped<CreateWorkItemTool>();
         // etc.
+
+        // Azure DevOps tools
+        services.AddScoped<ListADOProjectsTool>();
+        services.AddScoped<ListADORepositoriesTool>();
 
         // Only register agent if enabled
         services.AddScoped<DevOpsAgent>();

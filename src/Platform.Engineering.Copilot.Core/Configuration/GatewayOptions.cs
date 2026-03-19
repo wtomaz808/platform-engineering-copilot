@@ -18,6 +18,11 @@ public class GatewayOptions
     public GitHubGatewayOptions GitHub { get; set; } = new();
 
     /// <summary>
+    /// Azure DevOps configuration
+    /// </summary>
+    public AzureDevOpsGatewayOptions AzureDevOps { get; set; } = new();
+
+    /// <summary>
     /// Connection timeout in seconds
     /// </summary>
     public int ConnectionTimeoutSeconds { get; set; } = 30;
@@ -46,12 +51,27 @@ public class AzureGatewayOptions
     public string? TenantId { get; set; }
 
     /// <summary>
-    /// Azure client ID (Service Principal Application ID)
+    /// Authentication method: "credentials" (username/password), "servicePrincipal", or "managedIdentity"
+    /// </summary>
+    public string AuthMethod { get; set; } = "servicePrincipal";
+
+    /// <summary>
+    /// Azure username (UPN) for username/password authentication (e.g. user@tenant.onmicrosoft.us)
+    /// </summary>
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// Azure password for username/password authentication
+    /// </summary>
+    public string? Password { get; set; }
+
+    /// <summary>
+    /// Azure client ID (Service Principal Application ID, or public client app ID for ROPC flow)
     /// </summary>
     public string? ClientId { get; set; }
 
     /// <summary>
-    /// Azure client secret (Service Principal secret)
+    /// Azure client secret (Service Principal secret — only needed for servicePrincipal auth method)
     /// </summary>
     public string? ClientSecret { get; set; }
 
@@ -121,4 +141,30 @@ public class GitHubGatewayOptions
     /// Maximum file size in KB for GitHub operations (default 1MB)
     /// </summary>
     public int MaxFileSizeKb { get; set; } = 1024;
+}
+
+/// <summary>
+/// Azure DevOps gateway configuration
+/// </summary>
+public class AzureDevOpsGatewayOptions
+{
+    /// <summary>
+    /// Azure DevOps server URL (e.g. https://dev.azure.us/org or http://adoserver:8080)
+    /// </summary>
+    public string? ServerUrl { get; set; }
+
+    /// <summary>
+    /// Personal Access Token for Azure DevOps authentication
+    /// </summary>
+    public string? AccessToken { get; set; }
+
+    /// <summary>
+    /// Collection name for on-premises Azure DevOps Server (e.g., DefaultCollection)
+    /// </summary>
+    public string? DefaultCollection { get; set; }
+
+    /// <summary>
+    /// Whether Azure DevOps integration is enabled
+    /// </summary>
+    public bool Enabled { get; set; }
 }

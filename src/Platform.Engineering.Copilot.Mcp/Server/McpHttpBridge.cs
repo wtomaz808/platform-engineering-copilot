@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Platform.Engineering.Copilot.Agents.DevOps.Configuration;
 using Platform.Engineering.Copilot.Core.Configuration;
 using Platform.Engineering.Copilot.Core.Interfaces;
+using Platform.Engineering.Copilot.Core.Interfaces.Azure;
 using Platform.Engineering.Copilot.Core.Data.Context;
 using System.Text.Json;
 
@@ -581,6 +582,175 @@ public class McpHttpBridge
             }
         });
 
+        // Runtime Azure DevOps settings override (in-memory only; resets on MCP restart)
+        app.MapPost("/settings/ado", async (HttpContext context) =>
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<McpHttpBridge>>();
+            try
+            {
+                var request = await JsonSerializer.DeserializeAsync<AdoSettingsPayload>(
+                    context.Request.Body,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (request == null)
+                    return Results.BadRequest(new { error = "Invalid request" });
+
+                var gatewayOptions = context.RequestServices.GetRequiredService<IOptions<GatewayOptions>>();
+                var devOpsOptions = context.RequestServices.GetRequiredService<IOptions<DevOpsAgentOptions>>();
+
+                var ado = gatewayOptions.Value.AzureDevOps;
+
+                if (!string.IsNullOrWhiteSpace(request.ServerUrl))
+                {
+                    ado.ServerUrl = request.ServerUrl.TrimEnd('/');
+                }
+                if (!string.IsNullOrWhiteSpace(request.AccessToken))
+                {
+                    ado.AccessToken = request.AccessToken;
+                }
+                // For on-prem Server type, set collection
+                if (request.ServerType == "server")
+                {
+                    ado.DefaultCollection = !string.IsNullOrWhiteSpace(request.Collection)
+                        ? request.Collection
+                        : "DefaultCollection";
+                }
+                else
+                {
+                    ado.DefaultCollection = null;
+                }
+                ado.Enabled = true;
+
+                // Also sync to DevOpsAgentOptions
+                devOpsOptions.Value.AzureDevOps.Enabled = true;
+                devOpsOptions.Value.AzureDevOps.ServerUrl = ado.ServerUrl;
+                devOpsOptions.Value.AzureDevOps.AccessToken = ado.AccessToken;
+                devOpsOptions.Value.AzureDevOps.DefaultCollection = ado.DefaultCollection;
+
+                logger.LogInformation("✅ ADO settings updated at runtime. Server: {Url}, Collection: {Col}",
+                    ado.ServerUrl, ado.DefaultCollection ?? "(none)");
+
+                return Results.Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error updating ADO settings");
+                return Results.Json(new { error = ex.Message }, statusCode: 500);
+            }
+        });
+
+        // Runtime Azure settings override (in-memory only; resets on MCP restart)
+        // Called by the Chat service when user saves settings in the Admin Panel
+        app.MapPost("/settings/azure", async (HttpContext context) =>
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<McpHttpBridge>>();
+            try
+            {
+                var request = await JsonSerializer.DeserializeAsync<AzureSettingsPayload>(
+                    context.Request.Body,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (request == null)
+                    return Results.BadRequest(new { error = "Invalid request" });
+
+                var gatewayOptions = context.RequestServices.GetRequiredService<IOptions<GatewayOptions>>();
+                var azureClientFactory = context.RequestServices.GetRequiredService<IAzureClientFactory>();
+
+                var azure = gatewayOptions.Value.Azure;
+                bool changed = false;
+
+                if (!string.IsNullOrWhiteSpace(request.AuthMethod))
+                {
+                    azure.AuthMethod = request.AuthMethod;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(request.TenantId))
+                {
+                    azure.TenantId = request.TenantId;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(request.SubscriptionId))
+                {
+                    azure.SubscriptionId = request.SubscriptionId;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(request.Username))
+                {
+                    azure.Username = request.Username;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(request.Password))
+                {
+                    azure.Password = request.Password;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(request.ClientId))
+                {
+                    azure.ClientId = request.ClientId;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(request.ClientSecret))
+                {
+                    azure.ClientSecret = request.ClientSecret;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(request.CloudEnvironment))
+                {
+                    azure.CloudEnvironment = request.CloudEnvironment;
+                    changed = true;
+                }
+                azure.UseManagedIdentity = request.UseManagedIdentity;
+                azure.Enabled = true;
+
+                if (changed)
+                {
+                    azureClientFactory.InvalidateCredentials();
+                    logger.LogInformation("✅ Azure settings updated at runtime. Tenant: {Tenant}, Sub: {Sub}, Cloud: {Cloud}",
+                        azure.TenantId?[..Math.Min(8, azure.TenantId.Length)] + "...",
+                        azure.SubscriptionId?[..Math.Min(8, azure.SubscriptionId.Length)] + "...",
+                        azure.CloudEnvironment);
+                }
+
+                return Results.Ok(new { success = true, message = "Azure settings updated. Credentials will be refreshed on next request." });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error updating Azure settings");
+                return Results.Json(new { error = ex.Message }, statusCode: 500);
+            }
+        });
+
+        // Test Azure connectivity — attempts to get a token and list subscriptions
+        app.MapPost("/settings/azure/test", async (HttpContext context) =>
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<McpHttpBridge>>();
+            try
+            {
+                var azureClientFactory = context.RequestServices.GetRequiredService<IAzureClientFactory>();
+                var armClient = azureClientFactory.GetArmClient();
+
+                // Try to list subscriptions as a connectivity test
+                var subscriptions = new List<string>();
+                await foreach (var sub in armClient.GetSubscriptions().GetAllAsync(context.RequestAborted))
+                {
+                    subscriptions.Add($"{sub.Data.DisplayName} ({sub.Data.SubscriptionId})");
+                    if (subscriptions.Count >= 5) break; // Limit for test
+                }
+
+                return Results.Ok(new
+                {
+                    success = true,
+                    message = $"Connected successfully. Found {subscriptions.Count} subscription(s).",
+                    subscriptions
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Azure connectivity test failed");
+                return Results.Ok(new { success = false, message = $"Connection failed: {ex.Message}" });
+            }
+        });
+
         // Direct GitHub repos test — bypasses LLM, calls the tool directly.
         // Useful for verifying the GitHub token and org without Azure OpenAI configured.
         app.MapGet("/mcp/debug/github/repos", async (HttpContext context) =>
@@ -604,6 +774,24 @@ public class McpHttpBridge
     }
 
     private sealed record GitHubSettingsPayload(string? Organization, string? AccessToken);
+
+    private sealed record AdoSettingsPayload(
+        string? ServerUrl,
+        string? AccessToken,
+        string? PortalUrl,
+        string? ServerType,
+        string? Collection);
+
+    private sealed record AzureSettingsPayload(
+        string? AuthMethod,
+        string? TenantId,
+        string? SubscriptionId,
+        string? Username,
+        string? Password,
+        string? ClientId,
+        string? ClientSecret,
+        string? CloudEnvironment,
+        bool UseManagedIdentity);
 
     /// <summary>
     /// Process file attachments by saving base64-encoded content to temp directory
