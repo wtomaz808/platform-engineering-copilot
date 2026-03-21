@@ -2,7 +2,7 @@
 
 > **AI-Powered Infrastructure & Compliance Platform for Azure Government**
 
-Built on .NET 9.0, and Model Context Protocol (MCP). Uses the **Microsoft Agent Framework** architecture pattern with 8+ specialized AI agents for infrastructure, compliance, cost management, and more.
+Built on .NET 9.0, and Model Context Protocol (MCP). Uses the **Microsoft Agent Framework** architecture pattern with **10 specialized AI agents** for infrastructure, compliance, cost management, DevOps (GitHub & Azure DevOps), security, and more.
 
 ---
 
@@ -49,7 +49,7 @@ The platform uses **Microsoft Agent Framework** with `PlatformAgentGroupChat` fo
 │  │              PlatformAgentGroupChat                         ││
 │  │  ├─ PlatformSelectionStrategy (intent-based routing)       ││
 │  │  ├─ PlatformTerminationStrategy                            ││
-│  │  └─ 8 Specialized Agents                                    ││
+│  │  └─ 10 Specialized Agents                                   ││
 │  └─────────────────────────────────────────────────────────────┘│
 │                                                                  │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐               │
@@ -60,10 +60,14 @@ The platform uses **Microsoft Agent Framework** with `PlatformAgentGroupChat` fo
 │  │  Discovery  │ │ Environment │ │Configuration│               │
 │  │   Agent     │ │   Agent     │ │   Agent     │               │
 │  └─────────────┘ └─────────────┘ └─────────────┘               │
-│  ┌─────────────┐ ┌─────────────┐                               │
-│  │ Knowledge   │ │  Security   │                               │
-│  │ Base Agent  │ │   Agent     │                               │
-│  └─────────────┘ └─────────────┘                               │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐               │
+│  │ Knowledge   │ │  Security   │ │   DevOps    │               │
+│  │ Base Agent  │ │   Agent     │ │   Agent     │               │
+│  └─────────────┘ └─────────────┘ └─────────────┘               │
+│  ┌─────────────┐                                                │
+│  │Orchestrator │                                                │
+│  │   Agent     │                                                │
+│  └─────────────┘                                                │
 └─────────────────────────────────────────────────────────────────┘
         │                    │                    │
         ▼                    ▼                    ▼
@@ -93,8 +97,8 @@ The platform uses **Microsoft Agent Framework** with `PlatformAgentGroupChat` fo
 | **Environment** | Lifecycle | Environment provisioning, template management, Git sync |
 | **Configuration** | Settings | Azure configuration, Key Vault, App Config |
 | **KnowledgeBase** | Documentation | ATO docs, SSP generation, policy lookup |
-| **Security** | Protection | Vulnerability scanning, secure score, policy |
-
+| **Security** | Protection | Vulnerability scanning, secure score, policy || **DevOps** | CI/CD & SCM | GitHub repos/issues/PRs/Actions, Azure DevOps boards/pipelines, ADO Server (on-prem for Azure Gov) |
+| **Orchestrator** | Routing | Multi-agent coordination, intent-based agent selection |
 ---
 
 ## Example Queries
@@ -108,6 +112,9 @@ The platform uses **Microsoft Agent Framework** with `PlatformAgentGroupChat` fo
 "Generate Bicep for an AKS cluster in usgovvirginia"
 "Clone environment dev to staging"
 "What are the FedRAMP High requirements for access control?"
+"List my GitHub repositories and open PRs"
+"Create a GitHub issue for tracking the migration project"
+"Show recent pipeline runs for the platform-infra repo"
 ```
 
 ---
@@ -162,6 +169,7 @@ src/
 │   ├── Environments/                        # Environment Agent
 │   ├── Configuration/                       # Configuration Agent
 │   ├── KnowledgeBase/                       # Knowledge Base Agent
+│   ├── DevOps/                              # DevOps Agent (GitHub, ADO, ADO Server)
 │   └── Extensions/                          # DI registration
 ├── Platform.Engineering.Copilot.Core/       # Shared core library
 │   ├── Data/                                # EF Core context, migrations
@@ -172,7 +180,8 @@ src/
 ├── Platform.Engineering.Copilot.Channels/   # Communication channels
 ├── Platform.Engineering.Copilot.Chat/       # Web Chat UI (:5001)
 ├── Platform.Engineering.Copilot.Admin.API/  # Admin REST API (:5050)
-└── Platform.Engineering.Copilot.Admin.Client/ # Blazor WASM (:5000)
+├── Platform.Engineering.Copilot.Admin.Client/ # Blazor WASM (:5000)
+│   └── Pages/DevPortal                      # Developer Portal (GitHub, ADO, ADO Server)
 ```
 
 ---
@@ -236,6 +245,17 @@ All configuration in `appsettings.json`:
       "Endpoint": "https://your-openai.openai.azure.us/",
       "ApiKey": "<key>",
       "DeploymentName": "gpt-4o"
+    },
+    "GitHub": {
+      "AccessToken": "<github-pat>",
+      "DefaultOwner": "your-org",
+      "Enabled": true
+    },
+    "AzureDevOps": {
+      "ServerUrl": "https://dev.azure.us/your-org",
+      "AccessToken": "<ado-pat>",
+      "DefaultCollection": "DefaultCollection",
+      "Enabled": true
     }
   },
   "AgentConfiguration": {

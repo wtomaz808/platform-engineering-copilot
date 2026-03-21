@@ -585,3 +585,135 @@ public class DeployedResourceList
 }
 
 #endregion
+
+#region Developer Portal Models
+
+public class DevOpsConnection
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty; // "GitHub", "AzureDevOps", or "AdoServer"
+    public string ServerUrl { get; set; } = string.Empty;
+    public string? Organization { get; set; }
+    public string? Project { get; set; }
+    public string? Collection { get; set; }
+    public string Status { get; set; } = "Disconnected";
+    public DateTime? ConnectedAt { get; set; }
+    public DateTime? LastSyncedAt { get; set; }
+    public string? ConnectedBy { get; set; }
+    public int RepositoryCount { get; set; }
+    public int WorkItemCount { get; set; }
+    public int PipelineCount { get; set; }
+}
+
+public class CreateConnectionRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty;
+    public string ServerUrl { get; set; } = string.Empty;
+    public string? AccessToken { get; set; }
+    public string? Organization { get; set; }
+    public string? Project { get; set; }
+    public string? Collection { get; set; }
+}
+
+public class ConnectionTestResult
+{
+    public bool Success { get; set; }
+    public string? Message { get; set; }
+    public string? Organization { get; set; }
+    public string? UserName { get; set; }
+    public int RepositoryCount { get; set; }
+}
+
+public class DevPortalRepository
+{
+    public string Id { get; set; } = string.Empty;
+    public string ConnectionId { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string DefaultBranch { get; set; } = "main";
+    public string Url { get; set; } = string.Empty;
+    public string CloneUrl { get; set; } = string.Empty;
+    public string? Language { get; set; }
+    public bool IsPrivate { get; set; }
+    public int OpenIssueCount { get; set; }
+    public int OpenPrCount { get; set; }
+    public int Stars { get; set; }
+    public DateTime? LastPushAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+}
+
+public class DevPortalWorkItem
+{
+    public string Id { get; set; } = string.Empty;
+    public string ConnectionId { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty; // Issue, Bug, UserStory, Task, Epic
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string State { get; set; } = string.Empty; // Open, Active, Closed, etc.
+    public string? AssignedTo { get; set; }
+    public string? Priority { get; set; }
+    public List<string> Labels { get; set; } = new();
+    public string RepositoryName { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public int Number { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public DateTime? ClosedAt { get; set; }
+}
+
+public class DevPortalPipeline
+{
+    public string Id { get; set; } = string.Empty;
+    public string ConnectionId { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string RepositoryName { get; set; } = string.Empty;
+    public string? Status { get; set; } // Success, Failure, InProgress, Queued
+    public string? Conclusion { get; set; }
+    public string? Branch { get; set; }
+    public string Url { get; set; } = string.Empty;
+    public DateTime? LastRunAt { get; set; }
+    public int? DurationSeconds { get; set; }
+    public string? TriggerEvent { get; set; }
+}
+
+public class DevPortalArtifact
+{
+    public string Id { get; set; } = string.Empty;
+    public string ConnectionId { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Version { get; set; }
+    public string Type { get; set; } = string.Empty; // NuGet, npm, Container, Universal
+    public string? FeedName { get; set; }
+    public string? RepositoryName { get; set; }
+    public long? SizeBytes { get; set; }
+    public string? DownloadUrl { get; set; }
+    public DateTime? PublishedAt { get; set; }
+}
+
+public class DevPortalSummary
+{
+    public int TotalConnections { get; set; }
+    public int ActiveConnections { get; set; }
+    public int TotalRepositories { get; set; }
+    public int OpenWorkItems { get; set; }
+    public int ActivePipelines { get; set; }
+    public int RecentDeployments { get; set; }
+    public List<DevOpsConnection> Connections { get; set; } = new();
+}
+
+public class SyncResult
+{
+    public bool Success { get; set; }
+    public string? Message { get; set; }
+    public int ItemsSynced { get; set; }
+    public List<string>? Errors { get; set; }
+}
+
+#endregion

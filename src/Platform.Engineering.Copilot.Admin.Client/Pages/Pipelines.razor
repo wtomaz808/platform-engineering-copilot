@@ -1,0 +1,202 @@
+@page "/portal/pipelines"
+@inject DevPortalApiService DevPortalApi
+@inject IToastService ToastService
+@inject NavigationManager Navigation
+
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h4 class="mb-0"><i class="fa fa-play-circle me-2"></i>Pipelines & Actions</h4>
+        <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" style="width: 160px" @bind="_providerFilter" @bind:after="LoadPipelines">
+                <option value="">All Providers</option>
+                <option value="GitHub">GitHub Actions</option>
+                <option value="AzureDevOps">Azure Pipelines</option>
+                <option value="AdoServer">ADO Server Pipelines</option>
+            </select>
+            <input type="text" class="form-control form-control-sm" style="width: 240px"
+                   placeholder="Search pipelines..." @bind="_searchKeyword" @bind:event="oninput" />
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_repoFilter))
+{
+    <div class="alert alert-info small d-flex justify-content-between align-items-center mb-3">
+        <span><i class="fa fa-filter me-1"></i>Filtered by repository: <strong>@_repoFilter</strong></span>
+        <button class="btn btn-sm btn-outline-info" @onclick="ClearRepoFilter">Clear Filter</button>
+    </div>
+}
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading pipelines...</span>
+        </div>
+    </div>
+}
+else if (FilteredPipelines.Count == 0)
+{
+    <div class="empty-state">
+        <i class="fa fa-play-circle"></i>
+        <p>No pipeline runs found</p>
+        <p class="text-muted small">Select a repository or connect a DevOps provider to see CI/CD pipeline runs.</p>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Pipeline</th>
+                        <th>Repository</th>
+                        <th>Status</th>
+                        <th>Conclusion</th>
+                        <th>Branch</th>
+                        <th>Trigger</th>
+                        <th>Last Run</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var pipeline in FilteredPipelines)
+                    {
+                        <tr>
+                            <td>
+                                <a href="@pipeline.Url" target="_blank" rel="noopener" class="text-decoration-none">
+                                    <strong>@pipeline.Name</strong>
+                                </a>
+                            </td>
+                            <td class="small">@pipeline.RepositoryName</td>
+                            <td>
+                                <span class="status-badge @GetStatusClass(pipeline.Status)">
+                                    @if (pipeline.Status == "in_progress" || pipeline.Status == "queued")
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                    }
+                                    @(pipeline.Status ?? "Unknown")
+                                </span>
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(pipeline.Conclusion))
+                                {
+                                    <span class="badge @GetConclusionBadge(pipeline.Conclusion)">
+                                        <i class="fa @GetConclusionIcon(pipeline.Conclusion) me-1"></i>
+                                        @pipeline.Conclusion
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(pipeline.Branch))
+                                {
+                                    <span class="badge bg-light text-dark">
+                                        <i class="fa fa-code-branch me-1"></i>@pipeline.Branch
+                                    </span>
+                                }
+                            </td>
+                            <td class="small text-muted">@(pipeline.TriggerEvent ?? "–")</td>
+                            <td class="small text-muted">
+                                @(pipeline.LastRunAt?.ToLocalTime().ToString("MMM dd HH:mm") ?? "–")
+                            </td>
+                            <td>
+                                <a href="@pipeline.Url" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                                    <i class="fa fa-external-link-alt"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="text-muted small mt-2">Showing @FilteredPipelines.Count pipeline runs</div>
+}
+
+@code {
+    private bool _loading = true;
+    private List<DevPortalPipeline> _pipelines = new();
+    private string _providerFilter = "";
+    private string _searchKeyword = "";
+    private string _repoFilter = "";
+
+    private List<DevPortalPipeline> FilteredPipelines =>
+        string.IsNullOrWhiteSpace(_searchKeyword)
+            ? _pipelines
+            : _pipelines.Where(p =>
+                p.Name.Contains(_searchKeyword, StringComparison.OrdinalIgnoreCase) ||
+                p.RepositoryName.Contains(_searchKeyword, StringComparison.OrdinalIgnoreCase) ||
+                (p.Branch?.Contains(_searchKeyword, StringComparison.OrdinalIgnoreCase) ?? false)
+            ).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(Navigation.Uri);
+        if (!string.IsNullOrEmpty(uri.Query))
+        {
+            var queryParams = uri.Query.TrimStart('?').Split('&')
+                .Select(p => p.Split('=', 2))
+                .Where(p => p.Length == 2)
+                .ToDictionary(p => Uri.UnescapeDataString(p[0]), p => Uri.UnescapeDataString(p[1]));
+            queryParams.TryGetValue("repository", out var repo);
+            _repoFilter = repo ?? "";
+        }
+
+        await LoadPipelines();
+    }
+
+    private async Task LoadPipelines()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            _pipelines = await DevPortalApi.GetPipelinesAsync(
+                provider: string.IsNullOrEmpty(_providerFilter) ? null : _providerFilter,
+                repository: string.IsNullOrEmpty(_repoFilter) ? null : _repoFilter);
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load pipelines: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearRepoFilter()
+    {
+        _repoFilter = "";
+        Navigation.NavigateTo("portal/pipelines");
+        _ = LoadPipelines();
+    }
+
+    private string GetStatusClass(string? status) => (status ?? "").ToLower() switch
+    {
+        "completed" => "running",
+        "in_progress" or "queued" => "provisioning",
+        "failure" or "cancelled" => "failed",
+        _ => ""
+    };
+
+    private string GetConclusionBadge(string conclusion) => conclusion.ToLower() switch
+    {
+        "success" => "bg-success",
+        "failure" => "bg-danger",
+        "cancelled" => "bg-secondary",
+        "skipped" => "bg-light text-dark",
+        _ => "bg-warning text-dark"
+    };
+
+    private string GetConclusionIcon(string conclusion) => conclusion.ToLower() switch
+    {
+        "success" => "fa-check-circle",
+        "failure" => "fa-times-circle",
+        "cancelled" => "fa-ban",
+        _ => "fa-question-circle"
+    };
+}

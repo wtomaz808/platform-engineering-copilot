@@ -44,6 +44,26 @@
         </nav>
         
         <nav class="nav-section">
+            <div class="nav-section-title">Developer Portal</div>
+            <NavLink class="nav-link" href="portal">
+                <i class="fa fa-plug"></i>
+                <span>Connections</span>
+            </NavLink>
+            <NavLink class="nav-link" href="portal/repositories">
+                <i class="fa fa-code-branch"></i>
+                <span>Repositories</span>
+            </NavLink>
+            <NavLink class="nav-link" href="portal/workitems">
+                <i class="fa fa-tasks"></i>
+                <span>Work Items</span>
+            </NavLink>
+            <NavLink class="nav-link" href="portal/pipelines">
+                <i class="fa fa-play-circle"></i>
+                <span>Pipelines</span>
+            </NavLink>
+        </nav>
+
+        <nav class="nav-section">
             <div class="nav-section-title">Compliance</div>
             <NavLink class="nav-link" href="compliance">
                 <i class="fa fa-shield-alt"></i>
@@ -117,8 +137,13 @@
             "environments/expiring" => "Expiring Environments",
             "drift" => "Drift Detection",
             "health" => "Health Status",
+            "portal" => "Developer Portal",
+            "portal/repositories" => "Repositories",
+            "portal/workitems" => "Work Items & Issues",
+            "portal/pipelines" => "Pipelines & Actions",
             _ when path.StartsWith("templates/") => "Template Details",
             _ when path.StartsWith("environments/") => "Environment Details",
+            _ when path.StartsWith("portal/") => "Developer Portal",
             _ => "Platform Engineering Admin"
         };
     }

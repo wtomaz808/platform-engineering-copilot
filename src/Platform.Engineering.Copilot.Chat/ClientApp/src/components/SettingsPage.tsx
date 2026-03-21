@@ -118,10 +118,16 @@ const agents = [
       'Educational content about NIST controls, STIG, RMF, FedRAMP, and DoD Impact Levels. Explains frameworks and requirements — does NOT scan environments.',
   },
   {
-    icon: '🔧',
-    name: 'DevOps Agent',
+    icon: '�',
+    name: 'GitHub Agent',
     description:
-      'GitHub and Azure DevOps automation — repository management, pull requests, issues, CI/CD pipeline triggers, team management, and action runs.',
+      'GitHub repository management, pull requests, issues, GitHub Actions / CI-CD triggers, team management, branch protection, and security policy configuration.',
+  },
+  {
+    icon: '🔷',
+    name: 'Azure DevOps Agent',
+    description:
+      'Azure DevOps project and repository management, work item tracking (User Stories, Tasks, Bugs, Epics), Azure Pipelines management, and team configuration.',
   },
 ];
 

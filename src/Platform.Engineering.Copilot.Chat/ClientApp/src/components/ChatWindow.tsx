@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Bot, User, Zap, CheckCircle, Clock, TrendingUp, ChevronDown, Copy, Mail } from 'lucide-react';
+import { Send, Paperclip, Bot, User, Zap, CheckCircle, Clock, TrendingUp, ChevronDown, Copy, Mail, Download, FileText, File as FileIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { ChatMessage, Conversation, MessageRole, ProactiveSuggestion } from '../types/chat';
 import { useChat } from '../contexts/ChatContext';
+import { exportToPdf, exportToPptx } from '../services/exportService';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -28,6 +29,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,6 +92,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          // Rename pasted image with timestamp
+          Object.defineProperty(file, 'name', {
+            writable: true,
+            value: `pasted-image-${Date.now()}.${(item.type.split('/')[1]) || 'png'}`,
+          });
+          imageFiles.push(file);
+        }
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      setAttachments(prev => [...prev, ...imageFiles]);
+    }
+  };
+
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
@@ -144,8 +170,39 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
       </div>
 
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{conversation.title || 'New Conversation'}</h2>
+        {messages.length > 0 && (
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(p => !p)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 transition-colors"
+              title="Export conversation"
+            >
+              <Download size={14} />
+              Export
+              <ChevronDown size={12} className={`transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-20 min-w-[160px]">
+                <button
+                  onClick={() => { exportToPdf(messages, conversation.title || 'Conversation'); setShowExportMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2 transition-colors"
+                >
+                  <FileText size={14} className="text-red-500" />
+                  Download PDF
+                </button>
+                <button
+                  onClick={() => { exportToPptx(messages, conversation.title || 'Conversation'); setShowExportMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2 transition-colors"
+                >
+                  <FileIcon size={14} className="text-orange-500" />
+                  Download PPTX
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 dark:bg-gray-900 custom-scrollbar">
@@ -416,12 +473,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {attachments.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
             {attachments.map((file, index) => (
-              <div key={index} className="inline-flex items-center bg-gray-100 px-3 py-1 rounded-lg text-sm text-gray-700">
-                📎 {file.name}
+              <div key={index} className="inline-flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-lg text-sm text-gray-700 dark:text-gray-300">
+                {file.type.startsWith('image/') ? (
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="w-10 h-10 object-cover rounded mr-2"
+                  />
+                ) : (
+                  <span className="mr-1">📎</span>
+                )}
+                {file.name}
                 <button
                   type="button"
                   onClick={() => removeAttachment(index)}
-                  className="ml-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  className="ml-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                 >
                   ×
                 </button>
@@ -486,7 +552,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Message PE Copilot..."
+              onPaste={handlePaste}
+              placeholder="Message PE Copilot... (paste images with Ctrl+V)"
               className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={loading}
               rows={1}

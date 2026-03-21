@@ -51,7 +51,7 @@ COPY src/Platform.Engineering.Copilot.Mcp/. ./src/Platform.Engineering.Copilot.M
 # Install npm dependencies fresh in build stage (with source code present) and build React
 ENV NODE_OPTIONS=--max_old_space_size=2048
 RUN cd src/Platform.Engineering.Copilot.Chat/ClientApp && \
-    npm install --legacy-peer-deps && \
+    npm ci --legacy-peer-deps && \
     npm run build
 
 # Publish .NET app — React is already built above, skip re-running npm

@@ -23,6 +23,7 @@ builder.Services.AddScoped(sp => new HttpClient
 builder.Services.AddScoped<TemplateApiService>();
 builder.Services.AddScoped<EnvironmentApiService>();
 builder.Services.AddScoped<ComplianceApiService>();
+builder.Services.AddScoped<DevPortalApiService>();
 builder.Services.AddScoped<AppSettingsService>();
 
 // Add Blazored services

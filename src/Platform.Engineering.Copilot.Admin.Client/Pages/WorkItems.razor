@@ -1,0 +1,223 @@
+@page "/portal/workitems"
+@inject DevPortalApiService DevPortalApi
+@inject IToastService ToastService
+@inject NavigationManager Navigation
+
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h4 class="mb-0"><i class="fa fa-tasks me-2"></i>Work Items & Issues</h4>
+        <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" style="width: 160px" @bind="_providerFilter" @bind:after="LoadWorkItems">
+                <option value="">All Providers</option>
+                <option value="GitHub">GitHub</option>
+                <option value="AzureDevOps">Azure DevOps</option>
+                <option value="AdoServer">ADO Server</option>
+            </select>
+            <select class="form-select form-select-sm" style="width: 130px" @bind="_stateFilter" @bind:after="LoadWorkItems">
+                <option value="open">Open</option>
+                <option value="closed">Closed</option>
+                <option value="all">All</option>
+            </select>
+            <input type="text" class="form-control form-control-sm" style="width: 240px"
+                   placeholder="Search work items..." @bind="_searchKeyword" @bind:event="oninput" />
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_repoFilter))
+{
+    <div class="alert alert-info small d-flex justify-content-between align-items-center mb-3">
+        <span><i class="fa fa-filter me-1"></i>Filtered by repository: <strong>@_repoFilter</strong></span>
+        <button class="btn btn-sm btn-outline-info" @onclick="ClearRepoFilter">Clear Filter</button>
+    </div>
+}
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading work items...</span>
+        </div>
+    </div>
+}
+else if (FilteredItems.Count == 0)
+{
+    <div class="empty-state">
+        <i class="fa fa-tasks"></i>
+        <p>No work items found</p>
+        <p class="text-muted small">Connect a DevOps provider and select a repository to see issues and work items.</p>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 60px">#</th>
+                        <th>Title</th>
+                        <th style="width: 120px">Type</th>
+                        <th style="width: 120px">State</th>
+                        <th>Repository</th>
+                        <th>Assigned To</th>
+                        <th>Labels</th>
+                        <th style="width: 100px">Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in FilteredItems)
+                    {
+                        <tr>
+                            <td>
+                                <a href="@item.Url" target="_blank" rel="noopener" class="text-decoration-none">
+                                    @item.Number
+                                </a>
+                            </td>
+                            <td>
+                                <a href="@item.Url" target="_blank" rel="noopener" class="text-decoration-none">
+                                    @item.Title
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge @GetTypeBadge(item.Type)">
+                                    <i class="fa @GetTypeIcon(item.Type) me-1"></i>@item.Type
+                                </span>
+                            </td>
+                            <td>
+                                <span class="status-badge @GetStateClass(item.State)">
+                                    @item.State
+                                </span>
+                            </td>
+                            <td>
+                                <a href="portal/workitems?repository=@Uri.EscapeDataString(item.RepositoryName)"
+                                   class="text-decoration-none small">
+                                    @item.RepositoryName
+                                </a>
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(item.AssignedTo))
+                                {
+                                    <span class="small"><i class="fa fa-user me-1"></i>@item.AssignedTo</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">Unassigned</span>
+                                }
+                            </td>
+                            <td>
+                                @foreach (var label in item.Labels.Take(3))
+                                {
+                                    <span class="badge bg-secondary me-1">@label</span>
+                                }
+                                @if (item.Labels.Count > 3)
+                                {
+                                    <span class="badge bg-light text-dark">+@(item.Labels.Count - 3)</span>
+                                }
+                            </td>
+                            <td class="small text-muted">
+                                @item.CreatedAt.ToLocalTime().ToString("MMM dd")
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="text-muted small mt-2">Showing @FilteredItems.Count work items</div>
+}
+
+@code {
+    private bool _loading = true;
+    private List<DevPortalWorkItem> _workItems = new();
+    private string _providerFilter = "";
+    private string _stateFilter = "open";
+    private string _searchKeyword = "";
+    private string _repoFilter = "";
+
+    private List<DevPortalWorkItem> FilteredItems =>
+        string.IsNullOrWhiteSpace(_searchKeyword)
+            ? _workItems
+            : _workItems.Where(i =>
+                i.Title.Contains(_searchKeyword, StringComparison.OrdinalIgnoreCase) ||
+                i.RepositoryName.Contains(_searchKeyword, StringComparison.OrdinalIgnoreCase) ||
+                (i.AssignedTo?.Contains(_searchKeyword, StringComparison.OrdinalIgnoreCase) ?? false)
+            ).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Parse query string for repository filter
+        var uri = new Uri(Navigation.Uri);
+        if (!string.IsNullOrEmpty(uri.Query))
+        {
+            var queryParams = uri.Query.TrimStart('?').Split('&')
+                .Select(p => p.Split('=', 2))
+                .Where(p => p.Length == 2)
+                .ToDictionary(p => Uri.UnescapeDataString(p[0]), p => Uri.UnescapeDataString(p[1]));
+            queryParams.TryGetValue("repository", out var repo);
+            _repoFilter = repo ?? "";
+        }
+
+        await LoadWorkItems();
+    }
+
+    private async Task LoadWorkItems()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            _workItems = await DevPortalApi.GetWorkItemsAsync(
+                provider: string.IsNullOrEmpty(_providerFilter) ? null : _providerFilter,
+                repository: string.IsNullOrEmpty(_repoFilter) ? null : _repoFilter,
+                state: _stateFilter == "all" ? null : _stateFilter);
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load work items: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearRepoFilter()
+    {
+        _repoFilter = "";
+        Navigation.NavigateTo("portal/workitems");
+        _ = LoadWorkItems();
+    }
+
+    private string GetTypeBadge(string type) => type.ToLower() switch
+    {
+        "issue" => "bg-warning text-dark",
+        "bug" => "bg-danger",
+        "pullrequest" => "bg-success",
+        "userstory" => "bg-primary",
+        "task" => "bg-info",
+        "epic" => "bg-dark",
+        _ => "bg-secondary"
+    };
+
+    private string GetTypeIcon(string type) => type.ToLower() switch
+    {
+        "issue" => "fa-exclamation-circle",
+        "bug" => "fa-bug",
+        "pullrequest" => "fa-code-branch",
+        "userstory" => "fa-book",
+        "task" => "fa-check-square",
+        "epic" => "fa-layer-group",
+        _ => "fa-tag"
+    };
+
+    private string GetStateClass(string state) => state.ToLower() switch
+    {
+        "open" or "active" or "new" => "running",
+        "closed" or "resolved" or "done" => "deleted",
+        "in progress" or "committed" => "provisioning",
+        _ => ""
+    };
+}

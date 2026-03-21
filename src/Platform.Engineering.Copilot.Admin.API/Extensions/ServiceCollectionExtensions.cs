@@ -4,9 +4,11 @@ using Platform.Engineering.Copilot.Core.Data.Extensions;
 using Platform.Engineering.Copilot.Core.Data.Services;
 using Platform.Engineering.Copilot.Core.Extensions;
 using Platform.Engineering.Copilot.Core.Interfaces.Azure;
+using Platform.Engineering.Copilot.Core.Interfaces.GitHub;
 using Platform.Engineering.Copilot.Core.Interfaces.Templates;
 using Platform.Engineering.Copilot.Core.Interfaces.Deployment;
 using Platform.Engineering.Copilot.Core.Models.TemplateMatching;
+using Platform.Engineering.Copilot.Core.Services;
 using Platform.Engineering.Copilot.Core.Services.Azure;
 using Platform.Engineering.Copilot.Agents.Environments.Services;
 using Platform.Engineering.Copilot.Agents.Infrastructure.Deployment;
@@ -85,6 +87,9 @@ public static class ServiceCollectionExtensions
         // Register deployment status polling service for automatic status updates
         services.Configure<DeploymentPollingOptions>(configuration.GetSection("DeploymentPolling"));
         services.AddHostedService<DeploymentStatusPollingBackgroundService>();
+
+        // Register GitHub gateway service for Developer Portal integration
+        services.AddSingleton<IGitHubServices, GitHubGatewayService>();
 
         return services;
     }

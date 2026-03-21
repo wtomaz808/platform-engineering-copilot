@@ -1,0 +1,434 @@
+@page "/portal"
+@inject DevPortalApiService DevPortalApi
+@inject IToastService ToastService
+@inject NavigationManager Navigation
+
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">Developer Portal</h4>
+        <button class="btn btn-primary" @onclick="() => _showConnectModal = true">
+            <i class="fa fa-plug me-2"></i>Add Connection
+        </button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading Developer Portal...</span>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="stat-card primary">
+                <div>
+                    <div class="stat-value">@(_summary?.TotalConnections ?? 0)</div>
+                    <div class="stat-label">Connections</div>
+                </div>
+                <i class="fa fa-plug stat-icon"></i>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card success">
+                <div>
+                    <div class="stat-value">@(_summary?.ActiveConnections ?? 0)</div>
+                    <div class="stat-label">Active</div>
+                </div>
+                <i class="fa fa-check-circle stat-icon"></i>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card info">
+                <div>
+                    <div class="stat-value">@(_summary?.TotalRepositories ?? 0)</div>
+                    <div class="stat-label">Repositories</div>
+                </div>
+                <i class="fa fa-code-branch stat-icon"></i>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card warning">
+                <div>
+                    <div class="stat-value">@(_summary?.OpenWorkItems ?? 0)</div>
+                    <div class="stat-label">Open Items</div>
+                </div>
+                <i class="fa fa-tasks stat-icon"></i>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card primary">
+                <div>
+                    <div class="stat-value">@(_summary?.ActivePipelines ?? 0)</div>
+                    <div class="stat-label">Pipelines</div>
+                </div>
+                <i class="fa fa-play-circle stat-icon"></i>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card success">
+                <div>
+                    <div class="stat-value">@(_summary?.RecentDeployments ?? 0)</div>
+                    <div class="stat-label">Recent Deploys</div>
+                </div>
+                <i class="fa fa-rocket stat-icon"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connections -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fa fa-plug me-2"></i>DevOps Connections</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (_summary?.Connections?.Count > 0)
+                    {
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Provider</th>
+                                    <th>Name</th>
+                                    <th>Organization</th>
+                                    <th>Status</th>
+                                    <th>Repos</th>
+                                    <th>Last Synced</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var conn in _summary.Connections)
+                                {
+                                    <tr>
+                                        <td>
+                                            @if (conn.Provider == "GitHub")
+                                            {
+                                                <span class="badge bg-dark"><i class="fa fa-github me-1"></i>GitHub</span>
+                                            }
+                                            else if (conn.Provider == "AdoServer")
+                                            {
+                                                <span class="badge bg-info"><i class="fa fa-server me-1"></i>ADO Server</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-primary"><i class="fa fa-project-diagram me-1"></i>Azure DevOps</span>
+                                            }
+                                        </td>
+                                        <td><strong>@conn.Name</strong></td>
+                                        <td>@(conn.Organization ?? "–")</td>
+                                        <td>
+                                            <span class="status-badge @GetConnectionStatusClass(conn.Status)">
+                                                @conn.Status
+                                            </span>
+                                        </td>
+                                        <td>@conn.RepositoryCount</td>
+                                        <td>@(conn.LastSyncedAt?.ToLocalTime().ToString("MMM dd HH:mm") ?? "Never")</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => SyncConnection(conn)" title="Sync">
+                                                <i class="fa fa-sync"></i>
+                                            </button>
+                                            @if (!conn.Id.StartsWith("auto-"))
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteConnection(conn)" title="Remove">
+                                                    <i class="fa fa-trash"></i>
+                                                </button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <i class="fa fa-plug"></i>
+                            <p>No DevOps connections configured</p>
+                            <p class="text-muted small">Connect GitHub, Azure DevOps, or ADO Server to see repositories, issues, and pipelines.</p>
+                            <button class="btn btn-primary" @onclick="() => _showConnectModal = true">
+                                <i class="fa fa-plus me-2"></i>Add Connection
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Navigation -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card clickable-card" @onclick='() => Navigation.NavigateTo("portal/repositories")'>
+                <div class="card-body text-center py-4">
+                    <i class="fa fa-code-branch fa-2x text-primary mb-3"></i>
+                    <h6>Repositories</h6>
+                    <p class="text-muted small mb-0">Browse repos, branches, and pull requests</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card clickable-card" @onclick='() => Navigation.NavigateTo("portal/workitems")'>
+                <div class="card-body text-center py-4">
+                    <i class="fa fa-tasks fa-2x text-warning mb-3"></i>
+                    <h6>Work Items & Issues</h6>
+                    <p class="text-muted small mb-0">Track issues, bugs, and boards</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card clickable-card" @onclick='() => Navigation.NavigateTo("portal/pipelines")'>
+                <div class="card-body text-center py-4">
+                    <i class="fa fa-play-circle fa-2x text-success mb-3"></i>
+                    <h6>Pipelines & Actions</h6>
+                    <p class="text-muted small mb-0">CI/CD runs, build status, deployments</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Add Connection Modal *@
+@if (_showConnectModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fa fa-plug me-2"></i>Add DevOps Connection</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showConnectModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Provider</label>
+                        <select class="form-select" @bind="_newConnection.Provider">
+                            <option value="">Select provider...</option>
+                            <option value="GitHub">GitHub</option>
+                            <option value="AzureDevOps">Azure DevOps (Cloud)</option>
+                            <option value="AdoServer">ADO Server (On-Premises)</option>
+                        </select>
+                        @if (_newConnection.Provider == "AdoServer")
+                        {
+                            <small class="text-muted">For Azure Gov users running Azure DevOps Server on-premises.</small>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Connection Name</label>
+                        <input type="text" class="form-control" @bind="_newConnection.Name"
+                               placeholder="e.g., My GitHub Org" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Server URL</label>
+                        <input type="text" class="form-control" @bind="_newConnection.ServerUrl"
+                               placeholder="@GetServerUrlPlaceholder()" />
+                        @if (_newConnection.Provider == "AdoServer")
+                        {
+                            <small class="text-muted">Full URL to your ADO Server instance (e.g., https://adoserver.agency.gov:8080/tfs)</small>
+                        }
+                        else
+                        {
+                            <small class="text-muted">Leave blank for default</small>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Organization / Owner</label>
+                        <input type="text" class="form-control" @bind="_newConnection.Organization"
+                               placeholder="Organization or username" />
+                    </div>
+                    @if (_newConnection.Provider == "AzureDevOps" || _newConnection.Provider == "AdoServer")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Project</label>
+                            <input type="text" class="form-control" @bind="_newConnection.Project"
+                                   placeholder="Project name" />
+                        </div>
+                    }
+                    @if (_newConnection.Provider == "AdoServer")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Collection</label>
+                            <input type="text" class="form-control" @bind="_newConnection.Collection"
+                                   placeholder="DefaultCollection" />
+                            <small class="text-muted">On-premises collection name (defaults to DefaultCollection)</small>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_testMessage))
+                    {
+                        <div class="alert @(_testSuccess ? "alert-success" : "alert-danger") small">
+                            <i class="fa @(_testSuccess ? "fa-check-circle" : "fa-exclamation-circle") me-1"></i>
+                            @_testMessage
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="TestConnection" disabled="@_testing">
+                        @if (_testing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="fa fa-bolt me-1"></i>Test
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="() => _showConnectModal = false">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveConnection" disabled="@_saving">
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="fa fa-save me-1"></i>Connect
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .clickable-card {
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .clickable-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+</style>
+
+@code {
+    private bool _loading = true;
+    private DevPortalSummary? _summary;
+
+    // Modal state
+    private bool _showConnectModal;
+    private CreateConnectionRequest _newConnection = new();
+    private bool _testing;
+    private bool _saving;
+    private bool _testSuccess;
+    private string? _testMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSummary();
+    }
+
+    private async Task LoadSummary()
+    {
+        try
+        {
+            _summary = await DevPortalApi.GetSummaryAsync();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load portal: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task TestConnection()
+    {
+        _testing = true;
+        _testMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await DevPortalApi.TestConnectionAsync(_newConnection);
+            _testSuccess = result?.Success ?? false;
+            _testMessage = result?.Message ?? "No response.";
+        }
+        catch (Exception ex)
+        {
+            _testSuccess = false;
+            _testMessage = ex.Message;
+        }
+        finally
+        {
+            _testing = false;
+        }
+    }
+
+    private async Task SaveConnection()
+    {
+        if (string.IsNullOrWhiteSpace(_newConnection.Name) || string.IsNullOrWhiteSpace(_newConnection.Provider))
+        {
+            ToastService.ShowWarning("Name and Provider are required.");
+            return;
+        }
+
+        _saving = true;
+        StateHasChanged();
+
+        try
+        {
+            await DevPortalApi.CreateConnectionAsync(_newConnection);
+            ToastService.ShowSuccess($"Connected to {_newConnection.Provider}: {_newConnection.Name}");
+            _showConnectModal = false;
+            _newConnection = new();
+            _testMessage = null;
+            await LoadSummary();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to create connection: {ex.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task SyncConnection(DevOpsConnection conn)
+    {
+        try
+        {
+            var result = await DevPortalApi.SyncConnectionAsync(conn.Id);
+            if (result?.Success == true)
+                ToastService.ShowSuccess(result.Message ?? "Sync completed.");
+            else
+                ToastService.ShowWarning(result?.Message ?? "Sync had issues.");
+            await LoadSummary();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Sync failed: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteConnection(DevOpsConnection conn)
+    {
+        try
+        {
+            await DevPortalApi.DeleteConnectionAsync(conn.Id);
+            ToastService.ShowSuccess($"Removed connection: {conn.Name}");
+            await LoadSummary();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to remove: {ex.Message}");
+        }
+    }
+
+    private string GetConnectionStatusClass(string status) => status.ToLower() switch
+    {
+        "connected" => "running",
+        "error" => "failed",
+        "disconnected" => "deleted",
+        _ => ""
+    };
+
+    private string GetServerUrlPlaceholder() => _newConnection.Provider switch
+    {
+        "GitHub" => "https://api.github.com",
+        "AzureDevOps" => "https://dev.azure.com/org",
+        "AdoServer" => "https://adoserver.agency.gov:8080/tfs",
+        _ => "Server URL"
+    };
+}

@@ -1,0 +1,155 @@
+@page "/portal/repositories"
+@inject DevPortalApiService DevPortalApi
+@inject IToastService ToastService
+
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h4 class="mb-0"><i class="fa fa-code-branch me-2"></i>Repositories</h4>
+        <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" style="width: 160px" @bind="_providerFilter" @bind:after="LoadRepositories">
+                <option value="">All Providers</option>
+                <option value="GitHub">GitHub</option>
+                <option value="AzureDevOps">Azure DevOps</option>
+                <option value="AdoServer">ADO Server</option>
+            </select>
+            <input type="text" class="form-control form-control-sm" style="width: 240px"
+                   placeholder="Search repositories..." @bind="_searchKeyword" @bind:event="oninput" />
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading repositories...</span>
+        </div>
+    </div>
+}
+else if (FilteredRepositories.Count == 0)
+{
+    <div class="empty-state">
+        <i class="fa fa-code-branch"></i>
+        <p>No repositories found</p>
+        <p class="text-muted small">Connect a GitHub or Azure DevOps account from the <a href="portal">Developer Portal</a> to see repos here.</p>
+    </div>
+}
+else
+{
+    <div class="row">
+        @foreach (var repo in FilteredRepositories)
+        {
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0">
+                                <a href="@repo.Url" target="_blank" rel="noopener">@repo.Name</a>
+                            </h6>
+                            @if (repo.Provider == "GitHub")
+                            {
+                                <span class="badge bg-dark"><i class="fa fa-github"></i></span>
+                            }
+                            else if (repo.Provider == "AdoServer")
+                            {
+                                <span class="badge bg-info"><i class="fa fa-server"></i></span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-primary"><i class="fa fa-project-diagram"></i></span>
+                            }
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(repo.Description))
+                        {
+                            <p class="text-muted small mb-2">@TruncateText(repo.Description, 100)</p>
+                        }
+
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            @if (!string.IsNullOrEmpty(repo.Language))
+                            {
+                                <span class="badge bg-secondary">@repo.Language</span>
+                            }
+                            @if (repo.IsPrivate)
+                            {
+                                <span class="badge bg-warning text-dark"><i class="fa fa-lock me-1"></i>Private</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success"><i class="fa fa-globe me-1"></i>Public</span>
+                            }
+                        </div>
+
+                        <div class="d-flex justify-content-between text-muted small">
+                            <span><i class="fa fa-exclamation-circle me-1"></i>@repo.OpenIssueCount issues</span>
+                            @if (repo.Stars > 0)
+                            {
+                                <span><i class="fa fa-star me-1"></i>@repo.Stars</span>
+                            }
+                            @if (repo.LastPushAt.HasValue)
+                            {
+                                <span><i class="fa fa-clock me-1"></i>@repo.LastPushAt.Value.ToLocalTime().ToString("MMM dd")</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent d-flex gap-2">
+                        <a href="@repo.Url" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary flex-fill">
+                            <i class="fa fa-external-link-alt me-1"></i>Open
+                        </a>
+                        <a href="portal/workitems?repository=@Uri.EscapeDataString(repo.Name)" class="btn btn-sm btn-outline-warning flex-fill">
+                            <i class="fa fa-tasks me-1"></i>Issues
+                        </a>
+                        <a href="portal/pipelines?repository=@Uri.EscapeDataString(repo.Name)" class="btn btn-sm btn-outline-success flex-fill">
+                            <i class="fa fa-play-circle me-1"></i>CI/CD
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private List<DevPortalRepository> _repositories = new();
+    private string _providerFilter = "";
+    private string _searchKeyword = "";
+
+    private List<DevPortalRepository> FilteredRepositories =>
+        string.IsNullOrWhiteSpace(_searchKeyword)
+            ? _repositories
+            : _repositories.Where(r =>
+                r.Name.Contains(_searchKeyword, StringComparison.OrdinalIgnoreCase) ||
+                (r.Description?.Contains(_searchKeyword, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (r.Language?.Contains(_searchKeyword, StringComparison.OrdinalIgnoreCase) ?? false)
+            ).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRepositories();
+    }
+
+    private async Task LoadRepositories()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            _repositories = await DevPortalApi.GetRepositoriesAsync(
+                provider: string.IsNullOrEmpty(_providerFilter) ? null : _providerFilter);
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load repositories: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string TruncateText(string text, int maxLength) =>
+        text.Length <= maxLength ? text : text[..maxLength] + "...";
+}
