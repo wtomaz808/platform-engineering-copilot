@@ -1,0 +1,80 @@
+name: "Feature Spec"
+description: "Propose a new feature or significant change"
+title: "[Spec]: "
+labels: ["type/feature", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature Specification
+        Before submitting, review the [CONSTITUTION.md](../.github/CONSTITUTION.md) to ensure alignment.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: "One paragraph describing the feature and why it matters."
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: "What problem does this solve? Who benefits?"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component(s)
+      description: "Select all containers/projects affected."
+      multiple: true
+      options:
+        - Admin Client (Blazor UI)
+        - Admin API
+        - MCP Server
+        - Chat UI
+        - Agents
+        - Infrastructure (Bicep/Terraform/Kubernetes)
+        - Database / State
+        - Core / Shared
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: "Bullet list of verifiable criteria."
+      placeholder: |
+        - [ ] When X happens, Y should occur
+        - [ ] The API returns Z shape
+        - [ ] The UI shows A with B pagination
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-changes
+    attributes:
+      label: API Changes
+      description: "New or modified endpoints, DTOs, request/response shapes. Write 'None' if UI-only."
+
+  - type: textarea
+    id: ui-changes
+    attributes:
+      label: UI Changes
+      description: "New pages, modified layouts, component changes. Write 'None' if API-only."
+
+  - type: textarea
+    id: technical-notes
+    attributes:
+      label: Technical Notes
+      description: "Implementation hints, known risks, dependencies, or constitution rules to watch for."
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of Scope
+      description: "Explicitly state what this spec does NOT cover."

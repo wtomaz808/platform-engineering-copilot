@@ -1,0 +1,77 @@
+name: "Bug Report"
+description: "Report a defect or unexpected behavior"
+title: "[Bug]: "
+labels: ["type/bug", "needs-triage"]
+body:
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current Behavior
+      description: "What happens now?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: "What should happen instead?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: "Numbered steps to reliably reproduce the issue."
+      placeholder: |
+        1. Navigate to ...
+        2. Click on ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: "Which container/project is affected?"
+      options:
+        - Admin Client (Blazor UI)
+        - Admin API
+        - MCP Server
+        - Chat UI
+        - Agents
+        - Infrastructure
+        - Database / State
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical — system unusable
+        - High — major feature broken
+        - Medium — feature degraded
+        - Low — cosmetic or minor
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Error Output
+      description: "Paste relevant error messages, stack traces, or Docker logs."
+      render: shell
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: "Deployment mode, browser, OS, Docker version, etc."
+      placeholder: |
+        - Deployment: Docker Compose (docker-compose.mcp-chat-admin.yml)
+        - Browser: Edge 124
+        - OS: Windows 11

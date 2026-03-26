@@ -1,0 +1,41 @@
+name: "Enhancement"
+description: "Improve an existing feature without changing its core behavior"
+title: "[Enhancement]: "
+labels: ["type/enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: "What existing feature should be improved and how?"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - Admin Client (Blazor UI)
+        - Admin API
+        - MCP Server
+        - Chat UI
+        - Agents
+        - Infrastructure
+        - Database / State
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: "How will we know this enhancement is complete?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-notes
+    attributes:
+      label: Technical Notes
+      description: "Implementation details, risks, or dependencies."
