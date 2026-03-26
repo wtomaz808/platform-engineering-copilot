@@ -272,6 +272,95 @@ Enable debug logging in `appsettings.json`:
 
 ---
 
+## Azure DevOps PAT Scope Requirements
+
+The Developer Portal integrates with Azure DevOps (Services and Server) via Personal Access Tokens (PATs). The PAT is configured through the Admin UI Integrations page or via `appsettings.json`.
+
+### Required Scopes by Feature
+
+| Feature | ADO API Used | Required PAT Scope | Notes |
+|---------|-------------|-------------------|-------|
+| **Repository Listing** | `_apis/git/repositories` | **Code (Read)** | Lists repos across all projects or a specific project |
+| **Work Items** | `_apis/wit/wiql`, `_apis/wit/workitems` | **Work Items (Read)** | WIQL query + batch fetch with `$expand=all` |
+| **Project Listing** | `_apis/projects` | **Project and Team (Read)** | Enumerates projects for pipeline/repo discovery |
+| **Pipeline Definitions** | `_apis/build/definitions` | **Build (Read)** | Includes `includeLatestBuilds=true` for status |
+| **Build History** | `_apis/build/builds` | **Build (Read)** | Fallback when definitions API unavailable |
+| **Connection Test** | `_apis/projects` or `_apis/git/repositories` | **Project and Team (Read)** | Used by the Integrations page to verify connectivity |
+
+### Minimum PAT Scopes (All Features)
+
+To enable full Developer Portal functionality, create a PAT with these scopes:
+
+| Scope | Access Level |
+|-------|-------------|
+| **Code** | Read |
+| **Work Items** | Read |
+| **Build** | Read |
+| **Project and Team** | Read |
+
+> **Principle of Least Privilege:** All features require **Read** access only. Never grant Write or Manage scopes unless you have a specific need beyond the Developer Portal.
+
+### ADO Server vs. ADO Services (Cloud)
+
+| Setting | ADO Services (Cloud) | ADO Server (On-Premises) |
+|---------|---------------------|--------------------------|
+| `ServerType` | `"services"` (default) | `"server"` |
+| `ServerUrl` | `https://dev.azure.com/{org}` | `https://your-server.domain.com/tfs` |
+| `DefaultCollection` | Not used | `"DefaultCollection"` (or your collection name) |
+| API URL pattern | `{ServerUrl}/{project}/_apis/...` | `{ServerUrl}/{Collection}/{project}/_apis/...` |
+
+### Creating a PAT
+
+**Azure DevOps Services:**
+1. Navigate to `https://dev.azure.com/{org}/_usersSettings/tokens`
+2. Click **+ New Token**
+3. Set **Name** (e.g., "Platform Engineering Copilot - ReadOnly")
+4. Set **Expiration** (max 1 year; use reminders)
+5. Select **Custom defined** scopes
+6. Check: Code (Read), Work Items (Read), Build (Read), Project and Team (Read)
+7. Click **Create** and copy the token immediately
+
+**Azure DevOps Server:**
+1. Navigate to `https://your-server/tfs/_details/security/tokens`
+2. Follow the same scope selection as above
+3. Ensure the collection in your configuration matches the PAT's collection scope
+
+### Configuration
+
+**Via Admin UI:** Navigate to Configuration > Integrations and enter the PAT in the Azure DevOps section.
+
+**Via appsettings.json:**
+```json
+{
+  "Gateway": {
+    "AzureDevOps": {
+      "Enabled": true,
+      "ServerUrl": "https://dev.azure.com/your-org",
+      "AccessToken": "<your-pat>",
+      "ServerType": "services",
+      "DefaultCollection": "DefaultCollection"
+    }
+  }
+}
+```
+
+> **Security:** Store the PAT in Azure Key Vault or environment variables in production. Never commit PATs to source control.
+
+### Troubleshooting ADO Authentication
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| **401 Unauthorized** | PAT is invalid, expired, or revoked | Generate a new PAT and update the configuration |
+| **403 Forbidden** | PAT lacks required scopes | Recreate the PAT with the scopes listed above |
+| **404 Not Found** on `_apis/projects` | Wrong `ServerUrl` or `DefaultCollection` | Verify the URL and collection name; check Server vs. Services setting |
+| **Connection test fails** | Network/firewall blocking access | Ensure the Admin API can reach the ADO server URL on port 443 |
+| **Repos load but work items don't** | PAT missing Work Items scope | Edit the PAT to add **Work Items (Read)** |
+| **Pipelines show but no build status** | PAT missing Build scope | Edit the PAT to add **Build (Read)** |
+| **"ADO Server" shown but using cloud** | `ServerType` set to `"server"` | Change `ServerType` to `"services"` |
+| **Timeout errors** | ADO Server slow or unreachable | Check network latency; default timeout is 30 seconds |
+
+---
+
 ## Production Checklist
 
 - [ ] Store secrets in Azure Key Vault
@@ -280,6 +369,8 @@ Enable debug logging in `appsettings.json`:
 - [ ] Enable Azure AD sign-in logs
 - [ ] Set up monitoring alerts
 - [ ] Conduct security review
+- [ ] ADO PAT uses minimum required scopes (Read-only)
+- [ ] ADO PAT expiration date tracked with renewal reminders
 
 ---
 
@@ -289,3 +380,4 @@ Enable debug logging in `appsettings.json`:
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture
 - [Azure Government Docs](https://docs.microsoft.com/azure/azure-government/)
 - [On-Behalf-Of Flow](https://docs.microsoft.com/azure/active-directory/develop/v2-oauth2-on-behalf-of-flow)
+- [Azure DevOps PAT Docs](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate)
