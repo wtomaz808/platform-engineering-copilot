@@ -1,12 +1,138 @@
 @page "/drift"
 @inject EnvironmentApiService EnvironmentApi
+@inject DriftApiService DriftApi
 @inject IToastService ToastService
 
 <PageTitle>Drift Detection</PageTitle>
 
+@* ===== Azure Policy Drift (Real Data) ===== *@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4><i class="fa fa-exchange-alt me-2"></i>Drift Detection</h4>
-    <button class="btn btn-primary" @onclick="ScanAllForDrift" disabled="@_scanning">
+    <button class="btn btn-primary" @onclick="ScanAzureDrift" disabled="@_azureScanning">
+        @if (_azureScanning)
+        {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+            <span>Scanning Azure...</span>
+        }
+        else
+        {
+            <i class="fa fa-search me-1"></i>
+            <span>Scan Azure Drift</span>
+        }
+    </button>
+</div>
+
+@if (_azureLoading)
+{
+    <div class="d-flex justify-content-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading Azure drift data...</span>
+        </div>
+    </div>
+}
+else if (_azureDrift != null && _azureDrift.Status == "not_configured")
+{
+    <div class="alert alert-info mb-4">
+        <i class="fa fa-info-circle me-2"></i>
+        @_azureDrift.Message
+    </div>
+}
+else if (_azureDrift != null && _azureDrift.Status == "auth_error")
+{
+    <div class="alert alert-warning mb-4">
+        <i class="fa fa-exclamation-triangle me-2"></i>
+        @_azureDrift.Message
+    </div>
+}
+else if (_azureDrift != null && _azureDrift.Status == "ok")
+{
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-success">@_azureDrift.CompliantResources</h2>
+                    <small class="text-muted">Compliant</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-warning">@_azureDrift.DriftedResources</h2>
+                    <small class="text-muted">With Drift</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-info">@_azureDrift.TotalResources</h2>
+                    <small class="text-muted">Total Resources</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-muted">@_azureDrift.ScannedAt.ToString("HH:mm")</h2>
+                    <small class="text-muted">Last Scan</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_azureDrift.DriftItems.Count == 0)
+    {
+        <div class="alert alert-success mb-4">
+            <i class="fa fa-check-circle me-2"></i>
+            No configuration drift detected. All resources are compliant with policy baselines.
+        </div>
+    }
+    else
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fa fa-exclamation-triangle me-2 text-warning"></i>Azure Policy Drift — @_azureDrift.DriftItems.Count item(s)
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Resource</th>
+                            <th>Type</th>
+                            <th>Resource Group</th>
+                            <th>Severity</th>
+                            <th>Policy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _azureDrift.DriftItems)
+                        {
+                            <tr>
+                                <td>
+                                    <span title="@item.ResourceId">@item.ResourceName</span>
+                                </td>
+                                <td><small class="text-muted">@ShortenResourceType(item.ResourceType)</small></td>
+                                <td>@item.ResourceGroup</td>
+                                <td>
+                                    <span class="badge @GetSeverityBadge(item.Severity)">@item.Severity</span>
+                                </td>
+                                <td>
+                                    <span title="@item.PolicyDefinitionId">@(item.PolicyName ?? "—")</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@* ===== Provisioned Environment Drift ===== *@
+<div class="d-flex justify-content-between align-items-center mb-3 mt-4">
+    <h5><i class="fa fa-server me-2"></i>Provisioned Environment Drift</h5>
+    <button class="btn btn-outline-primary btn-sm" @onclick="ScanAllForDrift" disabled="@_scanning">
         @if (_scanning)
         {
             <span class="spinner-border spinner-border-sm me-1"></span>
@@ -37,44 +163,10 @@ else if (_environments.Count == 0)
 }
 else
 {
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h2 class="text-success">@_environments.Count(e => !e.HasDrift)</h2>
-                    <small class="text-muted">In Sync</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h2 class="text-warning">@_environments.Count(e => e.HasDrift)</h2>
-                    <small class="text-muted">With Drift</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h2 class="text-info">@_environments.Sum(e => e.DriftCount)</h2>
-                    <small class="text-muted">Total Drift Items</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h2>@_environments.Count</h2>
-                    <small class="text-muted">Total Environments</small>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="card">
         <div class="card-header">
             <i class="fa fa-list me-2"></i>Environment Drift Status
+            <span class="badge bg-secondary ms-2">@_environments.Count(e => e.HasDrift) drifted / @_environments.Count total</span>
         </div>
         <div class="card-body p-0">
             <table class="table table-hover mb-0">
@@ -166,6 +258,12 @@ else
 }
 
 @code {
+    // Azure drift state
+    private bool _azureLoading = true;
+    private bool _azureScanning;
+    private DriftScanResponse? _azureDrift;
+
+    // Environment drift state
     private bool _loading = true;
     private bool _scanning;
     private List<EnvironmentListItem> _environments = new();
@@ -174,7 +272,53 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadEnvironments();
+        // Load both Azure drift and environments in parallel
+        var azureTask = LoadAzureDrift();
+        var envTask = LoadEnvironments();
+        await Task.WhenAll(azureTask, envTask);
+    }
+
+    private async Task LoadAzureDrift()
+    {
+        try
+        {
+            _azureDrift = await DriftApi.ScanForDriftAsync();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load Azure drift data: {ex.Message}");
+        }
+        finally
+        {
+            _azureLoading = false;
+        }
+    }
+
+    private async Task ScanAzureDrift()
+    {
+        _azureScanning = true;
+        StateHasChanged();
+
+        try
+        {
+            _azureDrift = await DriftApi.ScanForDriftAsync(forceRefresh: true);
+            if (_azureDrift?.Status == "ok")
+            {
+                if (_azureDrift.DriftedResources > 0)
+                    ToastService.ShowWarning($"Azure scan: {_azureDrift.DriftedResources} resource(s) with drift");
+                else
+                    ToastService.ShowSuccess("Azure scan: No drift detected");
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Azure drift scan failed: {ex.Message}");
+        }
+        finally
+        {
+            _azureScanning = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadEnvironments()
@@ -286,5 +430,21 @@ else
         if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
         if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
         return dt.ToString("MMM d");
+    }
+
+    private string GetSeverityBadge(string severity) => severity switch
+    {
+        "Critical" => "bg-danger",
+        "Warning" => "bg-warning text-dark",
+        "Info" => "bg-info",
+        _ => "bg-secondary"
+    };
+
+    private string ShortenResourceType(string resourceType)
+    {
+        if (string.IsNullOrEmpty(resourceType)) return "";
+        // "Microsoft.Compute/virtualMachines" → "virtualMachines"
+        var idx = resourceType.LastIndexOf('/');
+        return idx >= 0 ? resourceType[(idx + 1)..] : resourceType;
     }
 }
