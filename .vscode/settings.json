@@ -1,0 +1,60 @@
+{
+  // ═══════════════════════════════════════════════════════
+  // TERMINAL — Memory & lifecycle management
+  // ═══════════════════════════════════════════════════════
+  // Don't restore terminals on reload (prevents zombie accumulation)
+  "terminal.integrated.enablePersistentSessions": false,
+  // Cap scrollback per terminal (default 1000 is fine; lower = less RAM)
+  "terminal.integrated.scrollback": 500,
+  // Auto-close finished terminals after a short delay
+  "terminal.integrated.enableShellIntegration": true,
+
+  // ═══════════════════════════════════════════════════════
+  // EDITOR — Reduce memory footprint
+  // ═══════════════════════════════════════════════════════
+  // Disable minimap (uses GPU/memory for rendering)
+  "editor.minimap.enabled": false,
+  // Limit open editors (prevents unbounded tab accumulation)
+  "workbench.editor.limit.enabled": true,
+  "workbench.editor.limit.value": 10,
+  "workbench.editor.limit.perEditorGroup": true,
+  // Close editors when limit is exceeded (oldest first)
+  "workbench.editor.limit.excludeDirty": true,
+
+  // ═══════════════════════════════════════════════════════
+  // SEARCH & FILES — Reduce indexing overhead
+  // ═══════════════════════════════════════════════════════
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/node_modules": true,
+    "**/.git": true,
+    "**/TestResults": true
+  },
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/node_modules": true,
+    "**/TestResults": true,
+    "**/*.dll": true
+  },
+  // Don't watch huge folders for file changes
+  "files.watcherExclude": {
+    "**/bin/**": true,
+    "**/obj/**": true,
+    "**/node_modules/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/TestResults/**": true
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // EXTENSIONS — Reduce background work
+  // ═══════════════════════════════════════════════════════
+  // Only auto-save on focus change (not continuous)
+  "files.autoSave": "onFocusChange",
+  // Disable git auto-fetch (reduces background network/process work)
+  "git.autofetch": false,
+  // Don't confirm deletes (reduces dialog overhead, not memory, but QoL)
+  "explorer.confirmDelete": false
+}

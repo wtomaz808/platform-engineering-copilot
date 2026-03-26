@@ -246,6 +246,44 @@ src/
 
 ---
 
+## 13. Terminal & Resource Management
+
+VS Code OOM crashes are caused by unbounded terminal accumulation. These rules are mandatory for all AI-assisted and manual development sessions.
+
+### 13.1 Terminal Limits
+
+| Type | Max Count | Notes |
+|------|-----------|-------|
+| Background terminals | **2** | Servers, watchers, long-running processes |
+| Foreground terminals  | **1** | Shared/reused for all blocking commands |
+| **Total cap** | **3** | Must kill before creating if at cap |
+
+### 13.2 Spawn Rules
+
+- **Before spawning any new background terminal**, check the current count. If at or above the limit, kill the oldest idle terminal first.
+- **Prefer foreground (blocking) terminals** for one-shot commands: builds, tests, git operations, installs.
+- **Only use background terminals** for servers or watchers that the user is actively testing against.
+
+### 13.3 Cleanup Rules
+
+- **After completing a multi-step task**, kill any terminals no longer needed.
+- **Before starting a new server or watcher**, verify terminal count and reclaim idle ones.
+- **A terminal is "idle"** when: the server it runs is no longer being tested, the build/watcher task is complete, or its output has already been consumed.
+
+### 13.4 VS Code Memory Settings
+
+The workspace `.vscode/settings.json` enforces these memory-saving defaults:
+
+- `terminal.integrated.enablePersistentSessions: false` — no zombie terminals on reload.
+- `terminal.integrated.scrollback: 500` — capped scrollback per terminal.
+- `editor.minimap.enabled: false` — disable minimap rendering.
+- `workbench.editor.limit.value: 10` — auto-close oldest tabs beyond 10.
+- `files.watcherExclude` — excludes `bin/`, `obj/`, `node_modules/`, `.git/objects/`, `TestResults/`.
+
+These settings are committed to the repo and must not be removed without a constitution amendment.
+
+---
+
 ## Amendments
 
 To change any rule in this constitution:

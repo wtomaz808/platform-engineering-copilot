@@ -887,3 +887,77 @@ public class ResourceGroupCost
 }
 
 #endregion
+
+#region Migration & Modernization Models
+
+public class MigrationAssessmentRequest
+{
+    public string ApplicationName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? FrameworkVersion { get; set; }
+    public string? ProjectFileContent { get; set; }
+    public string? HostingEnvironment { get; set; }
+    public string? DatabaseType { get; set; }
+    public string? TargetService { get; set; }
+}
+
+public class MigrationAssessment
+{
+    public string Id { get; set; } = string.Empty;
+    public string ApplicationName { get; set; } = string.Empty;
+    public string Status { get; set; } = "ok";
+    public string? Message { get; set; }
+    public DateTime AssessedAt { get; set; }
+    public int OverallReadinessScore { get; set; }
+    public int FrameworkCompatibilityScore { get; set; }
+    public int DependencyHealthScore { get; set; }
+    public int DatabaseCouplingScore { get; set; }
+    public int SecurityPostureScore { get; set; }
+    public string RecommendedStrategy { get; set; } = string.Empty;
+    public string RecommendedAzureService { get; set; } = string.Empty;
+    public List<string> Blockers { get; set; } = new();
+    public List<string> Recommendations { get; set; } = new();
+    public List<MigrationPhase> MigrationPhases { get; set; } = new();
+}
+
+public class MigrationPhase
+{
+    public int Phase { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string EstimatedEffort { get; set; } = string.Empty;
+    public List<string> Tasks { get; set; } = new();
+}
+
+public class MigrationDashboard
+{
+    public string Status { get; set; } = "ok";
+    public string? Message { get; set; }
+    public int TotalAssessments { get; set; }
+    public int ReadyToMigrate { get; set; }
+    public int NeedsWork { get; set; }
+    public int Blocked { get; set; }
+    public double AverageReadinessScore { get; set; }
+    public List<MigrationAssessment> RecentAssessments { get; set; } = new();
+}
+
+public class AzureTargetRecommendation
+{
+    public string TargetService { get; set; } = string.Empty;
+    public string Rationale { get; set; } = string.Empty;
+    public int CompatibilityScore { get; set; }
+    public decimal EstimatedMonthlyCost { get; set; }
+    public List<string> Pros { get; set; } = new();
+    public List<string> Cons { get; set; } = new();
+    public bool SupportsGovCloud { get; set; }
+}
+
+public class TargetRecommendationsResponse
+{
+    public string Status { get; set; } = "ok";
+    public string? Message { get; set; }
+    public string ApplicationName { get; set; } = string.Empty;
+    public List<AzureTargetRecommendation> Recommendations { get; set; } = new();
+}
+
+#endregion

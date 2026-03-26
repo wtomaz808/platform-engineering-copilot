@@ -1,0 +1,562 @@
+@page "/migration"
+@inject MigrationApiService MigrationApi
+@inject IToastService ToastService
+
+<PageTitle>Migration &amp; Modernization</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4><i class="fa fa-exchange-alt me-2"></i>Migration &amp; Modernization</h4>
+    <button class="btn btn-primary" @onclick="RefreshDashboard" disabled="@_refreshing">
+        @if (_refreshing)
+        {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+            <span>Refreshing...</span>
+        }
+        else
+        {
+            <i class="fa fa-sync-alt me-1"></i>
+            <span>Refresh</span>
+        }
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Dashboard Summary Cards -->
+    @if (_dashboard != null)
+    {
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h2 class="text-primary">@_dashboard.TotalAssessments</h2>
+                        <small class="text-muted">Total Assessments</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h2 class="text-success">@_dashboard.ReadyToMigrate</h2>
+                        <small class="text-muted">Ready to Migrate</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h2 class="text-warning">@_dashboard.NeedsWork</h2>
+                        <small class="text-muted">Needs Work</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h2 class="text-danger">@_dashboard.Blocked</h2>
+                        <small class="text-muted">Blocked</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Assessment Form -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fa fa-clipboard-check me-2"></i>New Migration Assessment</span>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleForm">
+                <i class="fa @(_showForm ? "fa-chevron-up" : "fa-chevron-down")"></i>
+            </button>
+        </div>
+        @if (_showForm)
+        {
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Application Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="_request.ApplicationName" placeholder="e.g., LegacyHRPortal" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">.NET Framework Version</label>
+                        <select class="form-select" @bind="_request.FrameworkVersion">
+                            <option value="">-- Select --</option>
+                            <option value=".NET 9">.NET 9</option>
+                            <option value=".NET 8">.NET 8</option>
+                            <option value=".NET 7">.NET 7</option>
+                            <option value=".NET 6">.NET 6</option>
+                            <option value=".NET Core 3.1">.NET Core 3.1</option>
+                            <option value=".NET Core 2.1">.NET Core 2.1</option>
+                            <option value=".NET Framework 4.8">.NET Framework 4.8</option>
+                            <option value=".NET Framework 4.7">.NET Framework 4.7</option>
+                            <option value=".NET Framework 4.6">.NET Framework 4.6</option>
+                            <option value=".NET Framework 4.5">.NET Framework 4.5</option>
+                            <option value=".NET Framework 3.5">.NET Framework 3.5</option>
+                            <option value=".NET Framework 2.0">.NET Framework 2.0</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Database Type</label>
+                        <select class="form-select" @bind="_request.DatabaseType">
+                            <option value="">-- Select --</option>
+                            <option value="SQL Server">SQL Server</option>
+                            <option value="Azure SQL">Azure SQL</option>
+                            <option value="PostgreSQL">PostgreSQL</option>
+                            <option value="MySQL">MySQL</option>
+                            <option value="Oracle">Oracle</option>
+                            <option value="MongoDB / CosmosDB">MongoDB / CosmosDB</option>
+                            <option value="MS Access">MS Access</option>
+                            <option value="None">None / N/A</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Current Hosting Environment</label>
+                        <select class="form-select" @bind="_request.HostingEnvironment">
+                            <option value="">-- Select --</option>
+                            <option value="IIS on Windows Server 2022">IIS on Windows Server 2022</option>
+                            <option value="IIS on Windows Server 2019">IIS on Windows Server 2019</option>
+                            <option value="IIS on Windows Server 2016">IIS on Windows Server 2016</option>
+                            <option value="IIS on Windows Server 2012">IIS on Windows Server 2012</option>
+                            <option value="IIS on Windows Server 2008">IIS on Windows Server 2008</option>
+                            <option value="Docker / Containers">Docker / Containers</option>
+                            <option value="Azure (existing)">Azure (existing)</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Preferred Azure Target (optional)</label>
+                        <select class="form-select" @bind="_request.TargetService">
+                            <option value="">Auto-recommend</option>
+                            <option value="Azure App Service">Azure App Service</option>
+                            <option value="Azure Container Apps">Azure Container Apps</option>
+                            <option value="Azure Kubernetes Service (AKS)">Azure Kubernetes Service (AKS)</option>
+                            <option value="Azure Functions">Azure Functions</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Description</label>
+                        <input type="text" class="form-control" @bind="_request.Description" placeholder="Brief description of the application" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Project File Content (optional — paste .csproj or web.config)</label>
+                    <textarea class="form-control" rows="4" @bind="_request.ProjectFileContent" placeholder="Paste .csproj, web.config, or packages.config content here for deeper analysis..."></textarea>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" @onclick="RunAssessment" disabled="@_assessing">
+                        @if (_assessing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Assessing...</span>
+                        }
+                        else
+                        {
+                            <i class="fa fa-play me-1"></i>
+                            <span>Run Assessment</span>
+                        }
+                    </button>
+                    <button class="btn btn-info text-white" @onclick="GetRecommendations" disabled="@_recommending">
+                        @if (_recommending)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Analyzing...</span>
+                        }
+                        else
+                        {
+                            <i class="fa fa-lightbulb me-1"></i>
+                            <span>Get Target Recommendations</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Latest Assessment Result -->
+    @if (_latestAssessment != null)
+    {
+        <div class="card mb-4 border-@GetScoreBorderColor(_latestAssessment.OverallReadinessScore)">
+            <div class="card-header bg-@GetScoreBgColor(_latestAssessment.OverallReadinessScore) text-white">
+                <i class="fa fa-chart-bar me-2"></i>Assessment: @_latestAssessment.ApplicationName
+                <span class="badge bg-light text-dark ms-2">@_latestAssessment.RecommendedStrategy</span>
+            </div>
+            <div class="card-body">
+                <!-- Readiness Scores -->
+                <h6 class="mb-3">Readiness Scores</h6>
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between">
+                                <small>Overall Readiness</small>
+                                <small class="fw-bold">@_latestAssessment.OverallReadinessScore%</small>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar bg-@GetScoreColor(_latestAssessment.OverallReadinessScore)" 
+                                     style="width: @(_latestAssessment.OverallReadinessScore)%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between">
+                                <small>Framework Compatibility</small>
+                                <small>@_latestAssessment.FrameworkCompatibilityScore%</small>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-@GetScoreColor(_latestAssessment.FrameworkCompatibilityScore)" 
+                                     style="width: @(_latestAssessment.FrameworkCompatibilityScore)%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between">
+                                <small>Dependency Health</small>
+                                <small>@_latestAssessment.DependencyHealthScore%</small>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-@GetScoreColor(_latestAssessment.DependencyHealthScore)" 
+                                     style="width: @(_latestAssessment.DependencyHealthScore)%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between">
+                                <small>Database Coupling</small>
+                                <small>@_latestAssessment.DatabaseCouplingScore%</small>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-@GetScoreColor(_latestAssessment.DatabaseCouplingScore)" 
+                                     style="width: @(_latestAssessment.DatabaseCouplingScore)%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between">
+                                <small>Security Posture</small>
+                                <small>@_latestAssessment.SecurityPostureScore%</small>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-@GetScoreColor(_latestAssessment.SecurityPostureScore)" 
+                                     style="width: @(_latestAssessment.SecurityPostureScore)%"></div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <span class="badge bg-primary fs-6">
+                                <i class="fa fa-cloud me-1"></i>@_latestAssessment.RecommendedAzureService
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Blockers -->
+                @if (_latestAssessment.Blockers.Count > 0)
+                {
+                    <h6 class="text-danger"><i class="fa fa-ban me-1"></i>Blockers</h6>
+                    <ul class="list-group list-group-flush mb-3">
+                        @foreach (var blocker in _latestAssessment.Blockers)
+                        {
+                            <li class="list-group-item list-group-item-danger">
+                                <i class="fa fa-exclamation-triangle me-1"></i>@blocker
+                            </li>
+                        }
+                    </ul>
+                }
+
+                <!-- Recommendations -->
+                @if (_latestAssessment.Recommendations.Count > 0)
+                {
+                    <h6 class="text-info"><i class="fa fa-lightbulb me-1"></i>Recommendations</h6>
+                    <ul class="list-group list-group-flush mb-3">
+                        @foreach (var rec in _latestAssessment.Recommendations)
+                        {
+                            <li class="list-group-item">
+                                <i class="fa fa-check-circle text-info me-1"></i>@rec
+                            </li>
+                        }
+                    </ul>
+                }
+
+                <!-- Migration Phases -->
+                @if (_latestAssessment.MigrationPhases.Count > 0)
+                {
+                    <h6><i class="fa fa-road me-1"></i>Migration Roadmap</h6>
+                    <div class="row">
+                        @foreach (var phase in _latestAssessment.MigrationPhases)
+                        {
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-header py-2">
+                                        <small class="fw-bold">Phase @phase.Phase: @phase.Name</small>
+                                    </div>
+                                    <div class="card-body py-2">
+                                        <small class="text-muted d-block mb-2">@phase.Description</small>
+                                        <span class="badge bg-secondary mb-2">@phase.EstimatedEffort</span>
+                                        <ul class="list-unstyled mb-0" style="font-size: 0.8rem;">
+                                            @foreach (var task in phase.Tasks)
+                                            {
+                                                <li><i class="fa fa-circle text-muted me-1" style="font-size: 0.4rem; vertical-align: middle;"></i>@task</li>
+                                            }
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Target Recommendations -->
+    @if (_recommendations != null && _recommendations.Recommendations.Count > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fa fa-bullseye me-2"></i>Azure Target Recommendations for @_recommendations.ApplicationName
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    @foreach (var rec in _recommendations.Recommendations.OrderByDescending(r => r.CompatibilityScore))
+                    {
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                    <span class="fw-bold">@rec.TargetService</span>
+                                    <span class="badge bg-@GetScoreColor(rec.CompatibilityScore)">@rec.CompatibilityScore% match</span>
+                                </div>
+                                <div class="card-body py-2">
+                                    <p class="small mb-2">@rec.Rationale</p>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="badge bg-info text-white">~@rec.EstimatedMonthlyCost.ToString("C0")/mo</span>
+                                        @if (rec.SupportsGovCloud)
+                                        {
+                                            <span class="badge bg-success"><i class="fa fa-shield-alt me-1"></i>Gov Cloud</span>
+                                        }
+                                    </div>
+                                    <div class="row" style="font-size: 0.8rem;">
+                                        <div class="col-6">
+                                            <strong class="text-success">Pros</strong>
+                                            <ul class="list-unstyled mb-0">
+                                                @foreach (var pro in rec.Pros)
+                                                {
+                                                    <li><i class="fa fa-plus text-success me-1"></i>@pro</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                        <div class="col-6">
+                                            <strong class="text-danger">Cons</strong>
+                                            <ul class="list-unstyled mb-0">
+                                                @foreach (var con in rec.Cons)
+                                                {
+                                                    <li><i class="fa fa-minus text-danger me-1"></i>@con</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Assessment History -->
+    @if (_dashboard != null && _dashboard.RecentAssessments.Count > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fa fa-history me-2"></i>Assessment History
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Application</th>
+                            <th>Score</th>
+                            <th>Strategy</th>
+                            <th>Target</th>
+                            <th>Blockers</th>
+                            <th>Assessed</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in _dashboard.RecentAssessments)
+                        {
+                            <tr>
+                                <td class="fw-bold">@a.ApplicationName</td>
+                                <td>
+                                    <span class="badge bg-@GetScoreColor(a.OverallReadinessScore)">@a.OverallReadinessScore%</span>
+                                </td>
+                                <td>@a.RecommendedStrategy</td>
+                                <td><small>@a.RecommendedAzureService</small></td>
+                                <td>
+                                    @if (a.Blockers.Count > 0)
+                                    {
+                                        <span class="badge bg-danger">@a.Blockers.Count</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">None</span>
+                                    }
+                                </td>
+                                <td><small>@a.AssessedAt.ToString("MMM dd, HH:mm")</small></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewAssessment(a)" title="View details">
+                                        <i class="fa fa-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger ms-1" @onclick="() => DeleteAssessment(a.Id)" title="Delete">
+                                        <i class="fa fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private bool _refreshing;
+    private bool _assessing;
+    private bool _recommending;
+    private bool _showForm = true;
+
+    private MigrationDashboard? _dashboard;
+    private MigrationAssessment? _latestAssessment;
+    private TargetRecommendationsResponse? _recommendations;
+    private MigrationAssessmentRequest _request = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboard();
+        _loading = false;
+    }
+
+    private async Task LoadDashboard()
+    {
+        try
+        {
+            _dashboard = await MigrationApi.GetDashboardAsync();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load dashboard: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshDashboard()
+    {
+        _refreshing = true;
+        await LoadDashboard();
+        _refreshing = false;
+        ToastService.ShowSuccess("Dashboard refreshed");
+    }
+
+    private async Task RunAssessment()
+    {
+        if (string.IsNullOrWhiteSpace(_request.ApplicationName))
+        {
+            ToastService.ShowWarning("Application name is required.");
+            return;
+        }
+
+        _assessing = true;
+        try
+        {
+            _latestAssessment = await MigrationApi.RunAssessmentAsync(_request);
+            await LoadDashboard();
+            ToastService.ShowSuccess($"Assessment complete: {_latestAssessment?.OverallReadinessScore}% readiness");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Assessment failed: {ex.Message}");
+        }
+        finally
+        {
+            _assessing = false;
+        }
+    }
+
+    private async Task GetRecommendations()
+    {
+        if (string.IsNullOrWhiteSpace(_request.ApplicationName))
+        {
+            ToastService.ShowWarning("Application name is required.");
+            return;
+        }
+
+        _recommending = true;
+        try
+        {
+            _recommendations = await MigrationApi.GetTargetRecommendationsAsync(_request);
+            ToastService.ShowSuccess("Target recommendations loaded");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to get recommendations: {ex.Message}");
+        }
+        finally
+        {
+            _recommending = false;
+        }
+    }
+
+    private void ViewAssessment(MigrationAssessment assessment)
+    {
+        _latestAssessment = assessment;
+    }
+
+    private async Task DeleteAssessment(string id)
+    {
+        try
+        {
+            await MigrationApi.DeleteAssessmentAsync(id);
+            await LoadDashboard();
+            if (_latestAssessment?.Id == id)
+                _latestAssessment = null;
+            ToastService.ShowSuccess("Assessment deleted");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to delete: {ex.Message}");
+        }
+    }
+
+    private void ToggleForm() => _showForm = !_showForm;
+
+    private static string GetScoreColor(int score) => score switch
+    {
+        >= 70 => "success",
+        >= 40 => "warning",
+        _ => "danger"
+    };
+
+    private static string GetScoreBgColor(int score) => score switch
+    {
+        >= 70 => "success",
+        >= 40 => "warning",
+        _ => "danger"
+    };
+
+    private static string GetScoreBorderColor(int score) => score switch
+    {
+        >= 70 => "success",
+        >= 40 => "warning",
+        _ => "danger"
+    };
+}

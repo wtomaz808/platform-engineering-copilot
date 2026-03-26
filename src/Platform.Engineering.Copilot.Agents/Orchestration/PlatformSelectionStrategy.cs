@@ -226,6 +226,28 @@ public class PlatformSelectionStrategy
              !lower.Contains("generate") && !lower.Contains("bicep") && !lower.Contains("terraform")))
             return agents.FirstOrDefault(a => a.Name.Contains("Environment", StringComparison.OrdinalIgnoreCase));
 
+        // Modernization & Migration patterns
+        bool isModernizationRequest =
+            lower.Contains("modernize") || lower.Contains("modernization") ||
+            lower.Contains("migrate") || lower.Contains("migration") ||
+            lower.Contains("containerize") || lower.Contains("containerization") ||
+            lower.Contains("legacy app") || lower.Contains("legacy application") ||
+            lower.Contains(".net framework") || lower.Contains("net45") || lower.Contains("net48") ||
+            lower.Contains("on-prem") || lower.Contains("on-premises") || lower.Contains("on premise") ||
+            lower.Contains("database migration") || lower.Contains("db migration") ||
+            lower.Contains("lift and shift") || lower.Contains("lift-and-shift") ||
+            lower.Contains("replatform") || lower.Contains("refactor app") ||
+            lower.Contains("migration plan") || lower.Contains("migration readiness") ||
+            lower.Contains("batch process migration") || lower.Contains("migrate batch") ||
+            lower.Contains("wcf migration") || lower.Contains("msmq migration") ||
+            lower.Contains("app assessment") || lower.Contains("assess my app") ||
+            lower.Contains("dockerfile") || lower.Contains("containerization assessment") ||
+            lower.Contains("azure target") || lower.Contains("security scan") ||
+            (lower.Contains("migrate") && (lower.Contains("sql") || lower.Contains("iis") || lower.Contains("vmware")));
+
+        if (isModernizationRequest)
+            return agents.FirstOrDefault(a => a.Name.Contains("Modernization", StringComparison.OrdinalIgnoreCase));
+
         // DevOps patterns - GitHub and Azure DevOps operations
         bool isDevOpsRequest =
             // GitHub repository operations - natural language variations

@@ -46,6 +46,10 @@ using Platform.Engineering.Copilot.Agents.KnowledgeBase.Configuration;
 using Platform.Engineering.Copilot.Agents.KnowledgeBase.Services;
 using Platform.Engineering.Copilot.Agents.KnowledgeBase.State;
 using Platform.Engineering.Copilot.Agents.KnowledgeBase.Tools;
+using Platform.Engineering.Copilot.Agents.Modernization.Agents;
+using Platform.Engineering.Copilot.Agents.Modernization.Configuration;
+using Platform.Engineering.Copilot.Agents.Modernization.Services;
+using Platform.Engineering.Copilot.Agents.Modernization.Tools;
 using Platform.Engineering.Copilot.Agents.Orchestration;
 using Platform.Engineering.Copilot.Channels.Extensions;
 using Platform.Engineering.Copilot.Core.Interfaces;
@@ -118,6 +122,9 @@ public static class ServiceCollectionExtensions
 
         // Add DevOps agent
         services.AddDevOpsAgent(configuration);
+
+        // Add modernization agent
+        services.AddModernizationAgent(configuration);
 
         // Add tool registry
         services.AddToolRegistry();
@@ -216,6 +223,9 @@ public static class ServiceCollectionExtensions
 
         // Add DevOps agent
         services.AddDevOpsAgent(configuration);
+
+        // Add modernization agent
+        services.AddModernizationAgent(configuration);
 
         // Add tool registry
         services.AddToolRegistry();
@@ -648,6 +658,44 @@ public static class ServiceCollectionExtensions
         if (options.Enabled)
         {
             services.AddScoped<BaseAgent>(sp => sp.GetRequiredService<DevOpsAgent>());
+        }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the Modernization & Migration Agent for assessing and planning on-prem to Azure Gov migrations.
+    /// </summary>
+    public static IServiceCollection AddModernizationAgent(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Bind configuration
+        services.Configure<ModernizationAgentOptions>(
+            configuration.GetSection(ModernizationAgentOptions.SectionName));
+
+        // Check if agent is enabled
+        var options = configuration.GetSection(ModernizationAgentOptions.SectionName)
+            .Get<ModernizationAgentOptions>() ?? new ModernizationAgentOptions();
+
+        // Add shared services
+        services.AddScoped<CodeAnalysisService>();
+
+        // Add modernization tools
+        services.AddScoped<AppAssessmentTool>();
+        services.AddScoped<DatabaseMigrationTool>();
+        services.AddScoped<ContainerizationAssessmentTool>();
+        services.AddScoped<AzureTargetRecommendationTool>();
+        services.AddScoped<SecurityScanTool>();
+        services.AddScoped<ComplianceReadinessTool>();
+        services.AddScoped<MigrationPlanGeneratorTool>();
+        services.AddScoped<BatchProcessMigrationTool>();
+
+        // Only register agent if enabled
+        services.AddScoped<ModernizationAgent>();
+        if (options.Enabled)
+        {
+            services.AddScoped<BaseAgent>(sp => sp.GetRequiredService<ModernizationAgent>());
         }
 
         return services;
