@@ -1,12 +1,17 @@
 @page "/health"
 @inject EnvironmentApiService EnvironmentApi
+@inject HealthApiService HealthApi
 @inject IToastService ToastService
+@inject NavigationManager Navigation
 
 <PageTitle>Health Status</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4><i class="fa fa-heartbeat me-2"></i>Health Status</h4>
-    <button class="btn btn-primary" @onclick="RefreshHealth" disabled="@_refreshing">
+    <div>
+        <h4 class="mb-0"><i class="fa fa-heartbeat me-2"></i>Health Status</h4>
+        <small class="text-muted">Azure Resource Health and Service Health alerts</small>
+    </div>
+    <button class="btn btn-primary" @onclick="RefreshAll" disabled="@_refreshing">
         @if (_refreshing)
         {
             <span class="spinner-border spinner-border-sm me-1"></span>
@@ -28,134 +33,241 @@
         </div>
     </div>
 }
-else if (_environments.Count == 0)
+else if (_resourceHealth?.Status == "not_configured")
 {
-    <div class="alert alert-info">
-        <i class="fa fa-info-circle me-2"></i>
-        No environments found. <a href="environments/create">Provision a new environment</a> to get started.
+    <div class="alert alert-warning">
+        <i class="fa fa-exclamation-triangle me-2"></i>
+        <strong>Azure integration not configured.</strong>
+        <a href="settings" class="alert-link ms-1">Go to Settings &gt; Integrations</a> to configure your Azure connection.
     </div>
 }
 else
 {
+    @* --- Status message banners --- *@
+    @if (!string.IsNullOrEmpty(_resourceHealth?.Message))
+    {
+        <div class="alert @(_resourceHealth.Status == "ok" ? "alert-info" : "alert-warning") alert-dismissible fade show small mb-3">
+            <i class="fa fa-info-circle me-1"></i>@_resourceHealth.Message
+            <button type="button" class="btn-close btn-close-sm" @onclick="() => _resourceHealth.Message = null"></button>
+        </div>
+    }
+
+    @* --- Summary cards --- *@
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card border-success">
-                <div class="card-body text-center">
-                    <h2 class="text-success">@_healthyCount</h2>
-                    <small class="text-muted"><i class="fa fa-check-circle me-1"></i>Healthy</small>
+                <div class="card-body text-center py-2">
+                    <h2 class="text-success mb-0">@(_resourceHealth?.AvailableCount ?? 0)</h2>
+                    <small class="text-muted"><i class="fa fa-check-circle me-1"></i>Available</small>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card border-warning">
-                <div class="card-body text-center">
-                    <h2 class="text-warning">@_degradedCount</h2>
+                <div class="card-body text-center py-2">
+                    <h2 class="text-warning mb-0">@(_resourceHealth?.DegradedCount ?? 0)</h2>
                     <small class="text-muted"><i class="fa fa-exclamation-circle me-1"></i>Degraded</small>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card border-danger">
-                <div class="card-body text-center">
-                    <h2 class="text-danger">@_unhealthyCount</h2>
-                    <small class="text-muted"><i class="fa fa-times-circle me-1"></i>Unhealthy</small>
+                <div class="card-body text-center py-2">
+                    <h2 class="text-danger mb-0">@(_resourceHealth?.UnavailableCount ?? 0)</h2>
+                    <small class="text-muted"><i class="fa fa-times-circle me-1"></i>Unavailable</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-secondary">
+                <div class="card-body text-center py-2">
+                    <h2 class="text-secondary mb-0">@(_resourceHealth?.UnknownCount ?? 0)</h2>
+                    <small class="text-muted"><i class="fa fa-question-circle me-1"></i>Unknown</small>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-header">
-            <i class="fa fa-server me-2"></i>Environment Health
+    @* --- Resource Health Table --- *@
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <span><i class="fa fa-server me-2"></i>Resource Health <span class="badge bg-primary ms-1">@(_resourceHealth?.TotalResources ?? 0)</span></span>
         </div>
         <div class="card-body p-0">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Environment</th>
-                        <th>Template</th>
-                        <th>Status</th>
-                        <th>Health</th>
-                        <th>Est. Cost</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var env in _environments)
-                    {
+            @if (_resourceHealth?.Resources.Count > 0)
+            {
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
                         <tr>
-                            <td>
-                                <a href="environments/@env.Id">@env.Name</a>
-                                @if (!string.IsNullOrEmpty(env.DisplayName))
-                                {
-                                    <br /><small class="text-muted">@env.DisplayName</small>
-                                }
-                            </td>
-                            <td>@env.TemplateName</td>
-                            <td>
-                                <span class="badge @GetStatusBadgeClass(env.Status)">@env.Status</span>
-                            </td>
-                            <td>
-                                @{
-                                    var health = _healthStatus.GetValueOrDefault(env.Id);
-                                }
-                                @if (health != null)
-                                {
-                                    <span class="badge @GetHealthBadgeClass(health.OverallHealth)">
-                                        @health.OverallHealth
-                                    </span>
-                                    @if (health.HasDrift)
+                            <th>Resource</th>
+                            <th>Type</th>
+                            <th>Resource Group</th>
+                            <th>Health</th>
+                            <th>Reason</th>
+                            <th>Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var res in _resourceHealth.Resources)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@res.ResourceName</strong>
+                                    @if (!string.IsNullOrEmpty(res.Location))
                                     {
-                                        <span class="badge bg-warning text-dark ms-1">Drift</span>
+                                        <br /><small class="text-muted">@res.Location</small>
                                     }
-                                }
-                                else
-                                {
-                                    <span class="text-muted">—</span>
-                                }
-                            </td>
-                            <td>
-                                @if (env.EstimatedMonthlyCost > 0)
-                                {
-                                    <span>@env.EstimatedMonthlyCost.ToString("C0")/mo</span>
-                                }
-                                else
-                                {
-                                    <span class="text-muted">—</span>
-                                }
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-primary" 
-                                        @onclick="() => CheckHealth(env.Id)"
-                                        disabled="@(_checkingHealth.Contains(env.Id))">
-                                    @if (_checkingHealth.Contains(env.Id))
+                                </td>
+                                <td><small class="text-muted">@FormatResourceType(res.ResourceType)</small></td>
+                                <td><small>@res.ResourceGroup</small></td>
+                                <td>
+                                    <span class="badge @GetHealthBadgeClass(res.AvailabilityState)">
+                                        @res.AvailabilityState
+                                    </span>
+                                </td>
+                                <td><small>@(res.Summary ?? res.ReasonType ?? "—")</small></td>
+                                <td><small class="text-muted">@FormatDateTime(res.ReportedTime)</small></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="p-3 text-muted text-center">
+                    <i class="fa fa-info-circle me-1"></i>No resource health data available.
+                </div>
+            }
+        </div>
+    </div>
+
+    @* --- Service Health Alerts --- *@
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <span><i class="fa fa-bell me-2"></i>Service Health Alerts <span class="badge @(_serviceHealth?.TotalAlerts > 0 ? "bg-warning text-dark" : "bg-secondary") ms-1">@(_serviceHealth?.TotalAlerts ?? 0)</span></span>
+        </div>
+        <div class="card-body p-0">
+            @if (_serviceHealth?.Alerts.Count > 0)
+            {
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Alert</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Impacted Service</th>
+                            <th>Region</th>
+                            <th>Started</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var alert in _serviceHealth.Alerts)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@alert.Title</strong>
+                                    @if (!string.IsNullOrEmpty(alert.Description))
                                     {
-                                        <span class="spinner-border spinner-border-sm"></span>
+                                        <br /><small class="text-muted">@TruncateText(alert.Description, 100)</small>
+                                    }
+                                </td>
+                                <td><span class="badge @GetEventTypeBadge(alert.EventType)">@alert.EventType</span></td>
+                                <td><small>@alert.Status</small></td>
+                                <td><small>@(alert.ImpactedService ?? "—")</small></td>
+                                <td><small>@(alert.ImpactedRegion ?? "—")</small></td>
+                                <td><small class="text-muted">@FormatDateTime(alert.ImpactStartTime)</small></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="p-3 text-muted text-center">
+                    <i class="fa fa-check-circle text-success me-1"></i>No active service health alerts.
+                </div>
+            }
+        </div>
+    </div>
+
+    @* --- Environment Health (existing) --- *@
+    @if (_environments.Count > 0)
+    {
+        <div class="card">
+            <div class="card-header py-2">
+                <i class="fa fa-layer-group me-2"></i>Provisioned Environment Health
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Environment</th>
+                            <th>Template</th>
+                            <th>Status</th>
+                            <th>Health</th>
+                            <th>Est. Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var env in _environments)
+                        {
+                            <tr>
+                                <td>
+                                    <a href="environments/@env.Id">@env.Name</a>
+                                    @if (!string.IsNullOrEmpty(env.DisplayName))
+                                    {
+                                        <br /><small class="text-muted">@env.DisplayName</small>
+                                    }
+                                </td>
+                                <td>@env.TemplateName</td>
+                                <td><span class="badge @GetStatusBadgeClass(env.Status)">@env.Status</span></td>
+                                <td>
+                                    @{
+                                        var health = _envHealthStatus.GetValueOrDefault(env.Id);
+                                    }
+                                    @if (health != null)
+                                    {
+                                        <span class="badge @GetHealthBadgeClass(health.OverallHealth)">@health.OverallHealth</span>
+                                        @if (health.HasDrift)
+                                        {
+                                            <span class="badge bg-warning text-dark ms-1">Drift</span>
+                                        }
                                     }
                                     else
                                     {
-                                        <i class="fa fa-stethoscope"></i>
+                                        <span class="text-muted">—</span>
                                     }
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                                </td>
+                                <td>
+                                    @if (env.EstimatedMonthlyCost > 0)
+                                    {
+                                        <span>@env.EstimatedMonthlyCost.ToString("C0")/mo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
+    }
 }
 
 @code {
     private bool _loading = true;
     private bool _refreshing;
+
+    // Real Azure data
+    private ResourceHealthResponse? _resourceHealth;
+    private ServiceHealthResponse? _serviceHealth;
+
+    // Existing environment health
     private List<EnvironmentListItem> _environments = new();
-    private Dictionary<string, EnvironmentHealth> _healthStatus = new();
-    private HashSet<string> _checkingHealth = new();
-    
-    private int _healthyCount => _healthStatus.Count(h => h.Value.OverallHealth == "Healthy");
-    private int _degradedCount => _healthStatus.Count(h => h.Value.OverallHealth == "Degraded");
-    private int _unhealthyCount => _healthStatus.Count(h => h.Value.OverallHealth == "Unhealthy");
+    private Dictionary<string, EnvironmentHealth> _envHealthStatus = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -164,30 +276,24 @@ else
 
     private async Task LoadData()
     {
+        _loading = true;
+        StateHasChanged();
+
         try
         {
-            _environments = await EnvironmentApi.GetEnvironmentsAsync();
-            
-            // Load health for each environment
-            foreach (var env in _environments)
-            {
-                try
-                {
-                    var health = await EnvironmentApi.GetHealthAsync(env.Id);
-                    if (health != null)
-                    {
-                        _healthStatus[env.Id] = health;
-                    }
-                }
-                catch
-                {
-                    // Ignore individual health check failures
-                }
-            }
+            // Fetch real Azure health data and environment data in parallel
+            var resourceTask = HealthApi.GetResourceHealthAsync();
+            var alertsTask = HealthApi.GetServiceHealthAlertsAsync();
+            var envTask = LoadEnvironmentHealth();
+
+            await Task.WhenAll(resourceTask, alertsTask, envTask);
+
+            _resourceHealth = resourceTask.Result ?? new ResourceHealthResponse { Status = "error", Message = "Failed to load resource health" };
+            _serviceHealth = alertsTask.Result ?? new ServiceHealthResponse { Status = "error", Message = "Failed to load service health alerts" };
         }
         catch (Exception ex)
         {
-            ToastService.ShowError($"Failed to load data: {ex.Message}");
+            ToastService.ShowError($"Failed to load health data: {ex.Message}");
         }
         finally
         {
@@ -195,48 +301,39 @@ else
         }
     }
 
-    private async Task CheckHealth(string id)
+    private async Task LoadEnvironmentHealth()
     {
-        _checkingHealth.Add(id);
-        StateHasChanged();
-        
         try
         {
-            var health = await EnvironmentApi.GetHealthAsync(id);
-            if (health != null)
+            _environments = await EnvironmentApi.GetEnvironmentsAsync();
+            foreach (var env in _environments)
             {
-                _healthStatus[id] = health;
-                ToastService.ShowSuccess($"Health: {health.OverallHealth}");
+                try
+                {
+                    var h = await EnvironmentApi.GetHealthAsync(env.Id);
+                    if (h != null) _envHealthStatus[env.Id] = h;
+                }
+                catch { }
             }
         }
-        catch (Exception ex)
-        {
-            ToastService.ShowError($"Health check failed: {ex.Message}");
-        }
-        finally
-        {
-            _checkingHealth.Remove(id);
-            StateHasChanged();
-        }
+        catch { }
     }
 
-    private async Task RefreshHealth()
+    private async Task RefreshAll()
     {
         _refreshing = true;
         StateHasChanged();
-        
+
         try
         {
-            _healthStatus.Clear();
-            foreach (var env in _environments)
-            {
-                await CheckHealth(env.Id);
-            }
+            _envHealthStatus.Clear();
+            await LoadData();
             ToastService.ShowSuccess("Health status refreshed");
         }
         finally
         {
             _refreshing = false;
+            _loading = false;
         }
     }
 
@@ -252,9 +349,37 @@ else
 
     private string GetHealthBadgeClass(string health) => health switch
     {
-        "Healthy" => "bg-success",
+        "Available" or "Healthy" => "bg-success",
         "Degraded" => "bg-warning text-dark",
-        "Unhealthy" => "bg-danger",
+        "Unavailable" or "Unhealthy" or "Critical" => "bg-danger",
         _ => "bg-secondary"
     };
+
+    private string GetEventTypeBadge(string eventType) => eventType switch
+    {
+        "ServiceIssue" => "bg-danger",
+        "PlannedMaintenance" => "bg-info",
+        "HealthAdvisory" => "bg-warning text-dark",
+        "SecurityAdvisory" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string FormatResourceType(string type)
+    {
+        if (string.IsNullOrEmpty(type)) return "—";
+        // "Microsoft.Compute/virtualMachines" → "Virtual Machines"
+        var parts = type.Split('/');
+        return parts.Length > 1 ? parts[^1] : type;
+    }
+
+    private static string FormatDateTime(DateTime? dt)
+    {
+        return dt?.ToString("MMM dd, yyyy HH:mm") ?? "—";
+    }
+
+    private static string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength) return text ?? "";
+        return text[..maxLength] + "...";
+    }
 }
