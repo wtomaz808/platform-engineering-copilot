@@ -841,3 +841,49 @@ public class DriftedResource
 }
 
 #endregion
+
+#region Cost Management
+
+public class CostSummaryResponse
+{
+    public string Status { get; set; } = "ok";
+    public string? Message { get; set; }
+    public string? SubscriptionId { get; set; }
+    public DateTime QueryDate { get; set; }
+    public decimal TotalCostLast30Days { get; set; }
+    public string Currency { get; set; } = "USD";
+    public List<DailyCost> DailyCosts { get; set; } = new();
+    public List<ServiceCost> CostByService { get; set; } = new();
+}
+
+public class CostByResourceGroupResponse
+{
+    public string Status { get; set; } = "ok";
+    public string? Message { get; set; }
+    public string? SubscriptionId { get; set; }
+    public List<ResourceGroupCost> ResourceGroups { get; set; } = new();
+}
+
+public class DailyCost
+{
+    public DateTime Date { get; set; }
+    public decimal Cost { get; set; }
+    public string Currency { get; set; } = "USD";
+}
+
+public class ServiceCost
+{
+    public string ServiceName { get; set; } = string.Empty;
+    public decimal Cost { get; set; }
+    public string Currency { get; set; } = "USD";
+}
+
+public class ResourceGroupCost
+{
+    public string ResourceGroupName { get; set; } = string.Empty;
+    public decimal Cost { get; set; }
+    public string Currency { get; set; } = "USD";
+    public int ResourceCount { get; set; }
+}
+
+#endregion

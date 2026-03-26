@@ -28,6 +28,7 @@ builder.Services.AddScoped<IntegrationsApiService>();
 builder.Services.AddScoped<AzureResourcesApiService>();
 builder.Services.AddScoped<HealthApiService>();
 builder.Services.AddScoped<DriftApiService>();
+builder.Services.AddScoped<CostApiService>();
 builder.Services.AddScoped<AppSettingsService>();
 
 // Add Blazored services

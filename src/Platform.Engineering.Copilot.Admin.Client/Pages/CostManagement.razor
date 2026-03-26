@@ -1,0 +1,269 @@
+@page "/cost"
+@inject CostApiService CostApi
+@inject IToastService ToastService
+
+<PageTitle>Cost Management</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4><i class="fa fa-dollar-sign me-2"></i>Cost Management</h4>
+    <button class="btn btn-primary" @onclick="RefreshAll" disabled="@_refreshing">
+        @if (_refreshing)
+        {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+            <span>Refreshing...</span>
+        }
+        else
+        {
+            <i class="fa fa-sync-alt me-1"></i>
+            <span>Refresh</span>
+        }
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading cost data...</span>
+        </div>
+    </div>
+}
+else if (_summary != null && _summary.Status == "not_configured")
+{
+    <div class="alert alert-info">
+        <i class="fa fa-info-circle me-2"></i>
+        @_summary.Message
+    </div>
+}
+else if (_summary != null && _summary.Status == "auth_error")
+{
+    <div class="alert alert-warning">
+        <i class="fa fa-exclamation-triangle me-2"></i>
+        @_summary.Message
+    </div>
+}
+else if (_summary != null && _summary.Status == "ok")
+{
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-primary">@_summary.TotalCostLast30Days.ToString("C2")</h2>
+                    <small class="text-muted">Total (Last 30 Days)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-info">@(_summary.DailyCosts.Count > 0 ? (_summary.TotalCostLast30Days / _summary.DailyCosts.Count).ToString("C2") : "$0.00")</h2>
+                    <small class="text-muted">Avg Daily Cost</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-success">@_summary.CostByService.Count</h2>
+                    <small class="text-muted">Services with Spend</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-muted">@_summary.Currency</h2>
+                    <small class="text-muted">Currency</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Cost Trend -->
+    @if (_summary.DailyCosts.Count > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fa fa-chart-line me-2"></i>Daily Cost Trend — Last 30 Days
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-end" style="height: 200px; gap: 2px;">
+                    @{
+                        var maxCost = _summary.DailyCosts.Max(d => d.Cost);
+                        if (maxCost == 0) maxCost = 1;
+                    }
+                    @foreach (var day in _summary.DailyCosts.OrderBy(d => d.Date))
+                    {
+                        var heightPct = maxCost > 0 ? (day.Cost / maxCost * 100) : 0;
+                        var barColor = heightPct > 80 ? "#dc3545" : heightPct > 50 ? "#ffc107" : "#0d6efd";
+                        <div style="flex: 1; min-width: 4px; display: flex; flex-direction: column; justify-content: flex-end; height: 100%;"
+                             title="@day.Date.ToString("MMM dd"): @day.Cost.ToString("C2")">
+                            <div style="height: @(heightPct)%; background-color: @barColor; border-radius: 2px 2px 0 0; min-height: 2px;"></div>
+                        </div>
+                    }
+                </div>
+                <div class="d-flex justify-content-between mt-2">
+                    <small class="text-muted">@_summary.DailyCosts.OrderBy(d => d.Date).First().Date.ToString("MMM dd")</small>
+                    <small class="text-muted">@_summary.DailyCosts.OrderBy(d => d.Date).Last().Date.ToString("MMM dd")</small>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row">
+        <!-- Cost by Service -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fa fa-th-list me-2"></i>Cost by Service
+                </div>
+                <div class="card-body p-0">
+                    @if (_summary.CostByService.Count == 0)
+                    {
+                        <div class="text-center text-muted py-4">No service cost data available.</div>
+                    }
+                    else
+                    {
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Service</th>
+                                    <th class="text-end">Cost</th>
+                                    <th style="width: 30%">% of Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var svc in _summary.CostByService)
+                                {
+                                    var pct = _summary.TotalCostLast30Days > 0 ? (svc.Cost / _summary.TotalCostLast30Days * 100) : 0;
+                                    <tr>
+                                        <td>@svc.ServiceName</td>
+                                        <td class="text-end">@svc.Cost.ToString("C2")</td>
+                                        <td>
+                                            <div class="progress" style="height: 16px;">
+                                                <div class="progress-bar bg-primary" style="width: @(pct)%">
+                                                    @if (pct > 10)
+                                                    {
+                                                        @($"{pct:N1}%")
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Cost by Resource Group -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fa fa-folder me-2"></i>Cost by Resource Group
+                </div>
+                <div class="card-body p-0">
+                    @if (_byRg == null || _byRg.ResourceGroups.Count == 0)
+                    {
+                        <div class="text-center text-muted py-4">No resource group cost data available.</div>
+                    }
+                    else
+                    {
+                        var totalRgCost = _byRg.ResourceGroups.Sum(r => r.Cost);
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Resource Group</th>
+                                    <th class="text-end">Cost</th>
+                                    <th style="width: 30%">% of Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var rg in _byRg.ResourceGroups)
+                                {
+                                    var pct = totalRgCost > 0 ? (rg.Cost / totalRgCost * 100) : 0;
+                                    <tr>
+                                        <td><small>@rg.ResourceGroupName</small></td>
+                                        <td class="text-end">@rg.Cost.ToString("C2")</td>
+                                        <td>
+                                            <div class="progress" style="height: 16px;">
+                                                <div class="progress-bar bg-success" style="width: @(pct)%">
+                                                    @if (pct > 10)
+                                                    {
+                                                        @($"{pct:N1}%")
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _refreshing;
+    private CostSummaryResponse? _summary;
+    private CostByResourceGroupResponse? _byRg;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAll();
+    }
+
+    private async Task LoadAll()
+    {
+        try
+        {
+            var summaryTask = CostApi.GetCostSummaryAsync();
+            var rgTask = CostApi.GetCostByResourceGroupAsync();
+            await Task.WhenAll(summaryTask, rgTask);
+
+            _summary = summaryTask.Result;
+            _byRg = rgTask.Result;
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load cost data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task RefreshAll()
+    {
+        _refreshing = true;
+        StateHasChanged();
+
+        try
+        {
+            var summaryTask = CostApi.GetCostSummaryAsync(forceRefresh: true);
+            var rgTask = CostApi.GetCostByResourceGroupAsync(forceRefresh: true);
+            await Task.WhenAll(summaryTask, rgTask);
+
+            _summary = summaryTask.Result;
+            _byRg = rgTask.Result;
+            ToastService.ShowSuccess("Cost data refreshed");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to refresh cost data: {ex.Message}");
+        }
+        finally
+        {
+            _refreshing = false;
+            StateHasChanged();
+        }
+    }
+}
