@@ -1,6 +1,6 @@
 using Azure.Core;
 using Azure.Identity;
-using Platform.Engineering.Copilot.Admin.API.Controllers;
+using Platform.Engineering.Copilot.Admin.API.DTOs;
 
 namespace Platform.Engineering.Copilot.Admin.API.Services;
 
