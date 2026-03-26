@@ -150,6 +150,12 @@ public class EnvironmentApiService
         return await response.Content.ReadFromJsonAsync<SyncResourcesResult>();
     }
 
+    public async Task<RefreshDeploymentStatusResult?> RefreshStatusAsync(string id)
+    {
+        var response = await _httpClient.PostAsync($"{BaseUrl}/{id}/refresh-status", null);
+        return await response.Content.ReadFromJsonAsync<RefreshDeploymentStatusResult>();
+    }
+
     public async Task<CreateEnvironmentResult?> ReprovisionEnvironmentAsync(string id, string requestedBy = "admin")
     {
         var response = await _httpClient.PostAsync($"{BaseUrl}/{id}/reprovision?requestedBy={Uri.EscapeDataString(requestedBy)}", null);

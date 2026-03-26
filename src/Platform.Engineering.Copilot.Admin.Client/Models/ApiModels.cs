@@ -334,6 +334,18 @@ public class CreateEnvironmentResult
     public EnvironmentDetail? Environment { get; set; }
 }
 
+public class RefreshDeploymentStatusResult
+{
+    public string EnvironmentId { get; set; } = string.Empty;
+    public string EnvironmentName { get; set; } = string.Empty;
+    public string DeploymentId { get; set; } = string.Empty;
+    public string PreviousStatus { get; set; } = string.Empty;
+    public string CurrentStatus { get; set; } = string.Empty;
+    public string? StatusMessage { get; set; }
+    public bool StatusChanged { get; set; }
+    public string? Error { get; set; }
+}
+
 public class ScaleEnvironmentModel
 {
     public int? NodeCount { get; set; }
