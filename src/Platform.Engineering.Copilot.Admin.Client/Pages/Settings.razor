@@ -1,5 +1,7 @@
 @page "/settings"
+@page "/integrations"
 @inject AppSettingsService SettingsService
+@inject IntegrationsApiService IntegrationsApi
 @inject IToastService ToastService
 
 <style>
@@ -102,6 +104,12 @@
         <a class="nav-link @(_activeTab == "security" ? "active" : "")" 
            href="#" @onclick="OnSecurityClick" @onclick:preventDefault>
             <i class="fa fa-shield-alt me-1"></i>Security
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link @(_activeTab == "integrations" ? "active" : "")" 
+           href="#" @onclick="OnIntegrationsClick" @onclick:preventDefault>
+            <i class="fa fa-link me-1"></i>Integrations
         </a>
     </li>
 </ul>
@@ -529,6 +537,376 @@
             </div>
         </div>
     }
+
+    <!-- Integrations Tab -->
+    @if (_activeTab == "integrations")
+    {
+        @if (!string.IsNullOrEmpty(_integrationSaveMessage))
+        {
+            <div class="alert @(_integrationSaveSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
+                <i class="fa @(_integrationSaveSuccess ? "fa-check-circle" : "fa-exclamation-circle") me-1"></i>
+                @_integrationSaveMessage
+                <button type="button" class="btn-close" @onclick="() => _integrationSaveMessage = null"></button>
+            </div>
+        }
+
+        <!-- Azure Integration -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center py-2" style="cursor:pointer" @onclick="() => _azureExpanded = !_azureExpanded">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge rounded-pill @(_settings.Integrations.Azure.Enabled ? "bg-success" : "bg-secondary")" style="width:10px;height:10px;padding:0"></span>
+                    <i class="fa fa-cloud text-primary"></i>
+                    <strong>Azure</strong>
+                    @if (_settings.Integrations.Azure.Enabled)
+                    {
+                        <span class="badge bg-success bg-opacity-25 text-success">Enabled</span>
+                    }
+                </div>
+                <i class="fa @(_azureExpanded ? "fa-chevron-down" : "fa-chevron-right") text-muted"></i>
+            </div>
+            @if (_azureExpanded)
+            {
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="azureEnabled" @bind="_settings.Integrations.Azure.Enabled">
+                        <label class="form-check-label" for="azureEnabled">Enable Azure integration</label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Cloud Environment</label>
+                        <select class="form-select" @bind="_settings.Integrations.Azure.CloudEnvironment">
+                            <option value="AzureGovernment">Azure Government (US Gov)</option>
+                            <option value="AzureCloud">Azure Commercial (Public)</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Tenant ID
+                                <small class="text-muted ms-1">(Entra ID tenant GUID)</small>
+                            </label>
+                            <input type="text" class="form-control font-monospace" @bind="_settings.Integrations.Azure.TenantId"
+                                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Subscription ID
+                                <small class="text-muted ms-1">(target Azure subscription)</small>
+                            </label>
+                            <input type="text" class="form-control font-monospace" @bind="_settings.Integrations.Azure.SubscriptionId"
+                                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                        </div>
+                    </div>
+
+                    <!-- Auth Method -->
+                    <div class="mb-3">
+                        <label class="form-label">Authentication Method</label>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <div class="card h-100 @(_settings.Integrations.Azure.AuthMethod == "credentials" ? "border-primary" : "")"
+                                     style="cursor:pointer" @onclick='() => SetAzureAuthMethod("credentials")'>
+                                    <div class="card-body p-2 text-center">
+                                        <small class="fw-bold @(_settings.Integrations.Azure.AuthMethod == "credentials" ? "text-primary" : "")">Username / Password</small>
+                                        <br /><small class="text-muted">Your Azure login</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100 @(_settings.Integrations.Azure.AuthMethod == "servicePrincipal" ? "border-primary" : "")"
+                                     style="cursor:pointer" @onclick='() => SetAzureAuthMethod("servicePrincipal")'>
+                                    <div class="card-body p-2 text-center">
+                                        <small class="fw-bold @(_settings.Integrations.Azure.AuthMethod == "servicePrincipal" ? "text-primary" : "")">Service Principal</small>
+                                        <br /><small class="text-muted">App ID + Secret</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100 @(_settings.Integrations.Azure.AuthMethod == "managedIdentity" ? "border-primary" : "")"
+                                     style="cursor:pointer" @onclick='() => SetAzureAuthMethod("managedIdentity")'>
+                                    <div class="card-body p-2 text-center">
+                                        <small class="fw-bold @(_settings.Integrations.Azure.AuthMethod == "managedIdentity" ? "text-primary" : "")">Managed Identity</small>
+                                        <br /><small class="text-muted">Azure-hosted apps</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (_settings.Integrations.Azure.AuthMethod == "credentials")
+                    {
+                        <div class="alert alert-info small mb-3">
+                            <i class="fa fa-info-circle me-1"></i>
+                            Enter your Azure / Entra ID login credentials. The account needs <strong>Contributor</strong> role on the target subscription.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Username <small class="text-muted ms-1">(e.g. user@tenant.onmicrosoft.us)</small></label>
+                            <input type="text" class="form-control" @bind="_settings.Integrations.Azure.Username" placeholder="user@yourtenant.onmicrosoft.us" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <div class="input-group">
+                                <input type="@(_showAzurePassword ? "text" : "password")" class="form-control" @bind="_settings.Integrations.Azure.Password" placeholder="••••••••••••" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="() => _showAzurePassword = !_showAzurePassword">
+                                    <i class="fa @(_showAzurePassword ? "fa-eye-slash" : "fa-eye")"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Client ID <small class="text-muted ms-1">(optional — uses Azure PowerShell default if blank)</small></label>
+                            <input type="text" class="form-control font-monospace" @bind="_settings.Integrations.Azure.ClientId" placeholder="Leave blank to use default" />
+                        </div>
+                    }
+
+                    @if (_settings.Integrations.Azure.AuthMethod == "servicePrincipal")
+                    {
+                        <div class="alert alert-info small mb-3">
+                            <i class="fa fa-info-circle me-1"></i>
+                            Enter your Service Principal credentials. The SP needs <strong>Contributor</strong> role on the target subscription.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Client ID <small class="text-muted ms-1">(Service Principal App ID)</small></label>
+                            <input type="text" class="form-control font-monospace" @bind="_settings.Integrations.Azure.ClientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Client Secret</label>
+                            <div class="input-group">
+                                <input type="@(_showAzureSecret ? "text" : "password")" class="form-control" @bind="_settings.Integrations.Azure.ClientSecret" placeholder="••••••••••••••••••••" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="() => _showAzureSecret = !_showAzureSecret">
+                                    <i class="fa @(_showAzureSecret ? "fa-eye-slash" : "fa-eye")"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (_settings.Integrations.Azure.AuthMethod == "managedIdentity")
+                    {
+                        <div class="alert alert-info small mb-3">
+                            <i class="fa fa-info-circle me-1"></i>
+                            Managed Identity is auto-detected when running in Azure (ACI, AKS, App Service).
+                            No credentials needed — just ensure the identity has <strong>Contributor</strong> role on the subscription.
+                        </div>
+                    }
+
+                    <div class="alert alert-warning small mb-3">
+                        <i class="fa fa-exclamation-triangle me-1"></i>
+                        <strong>RBAC:</strong> The identity needs <strong>Contributor</strong> role on the target subscription.
+                        Add <strong>User Access Administrator</strong> if RBAC management is also needed.
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="TestAzureConnection"
+                                disabled="@(_azureTesting || string.IsNullOrEmpty(_settings.Integrations.Azure.TenantId) || string.IsNullOrEmpty(_settings.Integrations.Azure.SubscriptionId))">
+                            @if (_azureTesting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fa fa-bolt me-1"></i>Test Connection
+                        </button>
+                        <button class="btn btn-primary btn-sm" @onclick="SaveIntegrationSettings" disabled="@_integrationSaving">
+                            @if (_integrationSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fa fa-save me-1"></i>Save
+                        </button>
+                        @if (!string.IsNullOrEmpty(_azureTestMessage))
+                        {
+                            <small class="@(_azureTestSuccess ? "text-success" : "text-danger")">
+                                <i class="fa @(_azureTestSuccess ? "fa-check-circle" : "fa-times-circle") me-1"></i>@_azureTestMessage
+                            </small>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- GitHub Integration -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge rounded-pill @(_settings.Integrations.GitHub.Enabled ? "bg-success" : "bg-secondary")" style="width:10px;height:10px;padding:0"></span>
+                    <i class="fa fa-github text-dark"></i>
+                    <strong>GitHub</strong>
+                    @if (_settings.Integrations.GitHub.Enabled)
+                    {
+                        <span class="badge bg-success bg-opacity-25 text-success">Enabled</span>
+                    }
+                </div>
+            </div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="githubEnabled" @bind="_settings.Integrations.GitHub.Enabled">
+                        <label class="form-check-label" for="githubEnabled">Enable GitHub integration</label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Organization / User <small class="text-muted ms-1">(e.g. azurenoops)</small></label>
+                        <input type="text" class="form-control" @bind="_settings.Integrations.GitHub.Organization" placeholder="your-org-or-username" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Personal Access Token <small class="text-muted ms-1">(requires repo, read:org scopes)</small></label>
+                        <div class="input-group">
+                            <input type="@(_showGitHubToken ? "text" : "password")" class="form-control" @bind="_settings.Integrations.GitHub.Token" placeholder="ghp_xxxxxxxxxxxx" />
+                            <button class="btn btn-outline-secondary" type="button" @onclick="() => _showGitHubToken = !_showGitHubToken">
+                                <i class="fa @(_showGitHubToken ? "fa-eye-slash" : "fa-eye")"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">API Base URL <small class="text-muted ms-1">(override for GitHub Enterprise)</small></label>
+                        <input type="text" class="form-control" @bind="_settings.Integrations.GitHub.ApiBaseUrl" placeholder="https://api.github.com" />
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="TestGitHubConnection"
+                                disabled="@(_githubTesting || string.IsNullOrEmpty(_settings.Integrations.GitHub.Token))">
+                            @if (_githubTesting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fa fa-bolt me-1"></i>Test Connection
+                        </button>
+                        <button class="btn btn-primary btn-sm" @onclick="SaveIntegrationSettings" disabled="@_integrationSaving">
+                            @if (_integrationSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fa fa-save me-1"></i>Save
+                        </button>
+                        @if (!string.IsNullOrEmpty(_githubTestMessage))
+                        {
+                            <small class="@(_githubTestSuccess ? "text-success" : "text-danger")">
+                                <i class="fa @(_githubTestSuccess ? "fa-check-circle" : "fa-times-circle") me-1"></i>@_githubTestMessage
+                            </small>
+                        }
+                    </div>
+                </div>
+        </div>
+
+        <!-- Azure DevOps Integration -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge rounded-pill @(_settings.Integrations.AzureDevOps.Enabled ? "bg-success" : "bg-secondary")" style="width:10px;height:10px;padding:0"></span>
+                    <i class="fa fa-project-diagram text-info"></i>
+                    <strong>Azure DevOps</strong>
+                    @if (_settings.Integrations.AzureDevOps.Enabled)
+                    {
+                        <span class="badge bg-success bg-opacity-25 text-success">Enabled</span>
+                    }
+                </div>
+            </div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="adoEnabled" @bind="_settings.Integrations.AzureDevOps.Enabled">
+                        <label class="form-check-label" for="adoEnabled">Enable Azure DevOps integration</label>
+                    </div>
+
+                    <!-- Server Type -->
+                    <div class="mb-3">
+                        <label class="form-label">Server Type</label>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <div class="card h-100 @(_settings.Integrations.AzureDevOps.ServerType == "services" ? "border-primary" : "")"
+                                     style="cursor:pointer" @onclick='() => _settings.Integrations.AzureDevOps.ServerType = "services"'>
+                                    <div class="card-body p-2">
+                                        <small class="fw-bold @(_settings.Integrations.AzureDevOps.ServerType == "services" ? "text-primary" : "")">Azure DevOps Services</small>
+                                        <br /><small class="text-muted">Cloud-hosted (dev.azure.us)</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100 @(_settings.Integrations.AzureDevOps.ServerType == "server" ? "border-primary" : "")"
+                                     style="cursor:pointer" @onclick='() => _settings.Integrations.AzureDevOps.ServerType = "server"'>
+                                    <div class="card-body p-2">
+                                        <small class="fw-bold @(_settings.Integrations.AzureDevOps.ServerType == "server" ? "text-primary" : "")">Azure DevOps Server</small>
+                                        <br /><small class="text-muted">On-premises / self-hosted</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            @(_settings.Integrations.AzureDevOps.ServerType == "server" ? "Server URL" : "Organization URL")
+                            <small class="text-muted ms-1">
+                                @(_settings.Integrations.AzureDevOps.ServerType == "server"
+                                    ? "(e.g. https://your-server:port/tfs)"
+                                    : "(e.g. https://dev.azure.us/yourorg)")
+                            </small>
+                        </label>
+                        <input type="text" class="form-control" @bind="_settings.Integrations.AzureDevOps.ServerUrl"
+                               placeholder="@(_settings.Integrations.AzureDevOps.ServerType == "server" ? "https://your-server:port/tfs" : "https://dev.azure.us/yourorg")" />
+                    </div>
+
+                    @if (_settings.Integrations.AzureDevOps.ServerType == "server")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Collection <small class="text-muted ms-1">(e.g. DefaultCollection)</small></label>
+                            <input type="text" class="form-control" @bind="_settings.Integrations.AzureDevOps.DefaultCollection" placeholder="DefaultCollection" />
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">Personal Access Token <small class="text-muted ms-1">(stored locally only)</small></label>
+                        <div class="input-group">
+                            <input type="@(_showAdoToken ? "text" : "password")" class="form-control" @bind="_settings.Integrations.AzureDevOps.AccessToken" placeholder="ADO personal access token" />
+                            <button class="btn btn-outline-secondary" type="button" @onclick="() => _showAdoToken = !_showAdoToken">
+                                <i class="fa @(_showAdoToken ? "fa-eye-slash" : "fa-eye")"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Project dropdown -->
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Project
+                            <small class="text-muted ms-1">(leave blank to see all projects)</small>
+                        </label>
+                        <div class="input-group">
+                            <select class="form-select" @bind="_settings.Integrations.AzureDevOps.Project">
+                                <option value="">-- All Projects --</option>
+                                @foreach (var proj in _adoProjects)
+                                {
+                                    <option value="@proj">@proj</option>
+                                }
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" @onclick="FetchAdoProjects"
+                                    disabled="@(_adoProjectsLoading || string.IsNullOrEmpty(_settings.Integrations.AzureDevOps.AccessToken) || string.IsNullOrEmpty(_settings.Integrations.AzureDevOps.ServerUrl))"
+                                    title="Refresh project list from ADO">
+                                @if (_adoProjectsLoading)
+                                {
+                                    <span class="spinner-border spinner-border-sm"></span>
+                                }
+                                else
+                                {
+                                    <i class="fa fa-sync"></i>
+                                }
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_adoProjectsMessage))
+                        {
+                            <small class="@(_adoProjectsSuccess ? "text-success" : "text-danger")">@_adoProjectsMessage</small>
+                        }
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="TestAdoConnection"
+                                disabled="@(_adoTesting || string.IsNullOrEmpty(_settings.Integrations.AzureDevOps.AccessToken) || string.IsNullOrEmpty(_settings.Integrations.AzureDevOps.ServerUrl))">
+                            @if (_adoTesting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fa fa-bolt me-1"></i>Test Connection
+                        </button>
+                        <button class="btn btn-primary btn-sm" @onclick="SaveIntegrationSettings" disabled="@_integrationSaving">
+                            @if (_integrationSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fa fa-save me-1"></i>Save
+                        </button>
+                        @if (!string.IsNullOrEmpty(_adoTestMessage))
+                        {
+                            <small class="@(_adoTestSuccess ? "text-success" : "text-danger")">
+                                <i class="fa @(_adoTestSuccess ? "fa-check-circle" : "fa-times-circle") me-1"></i>@_adoTestMessage
+                            </small>
+                        }
+                    </div>
+                </div>
+        </div>
+
+        <div class="alert alert-secondary small">
+            <i class="fa fa-info-circle me-1"></i>
+            Credentials are stored locally in your browser and synced to the backend on save.
+        </div>
+    }
 </div>
 
 @code {
@@ -540,8 +918,16 @@
     {
         await SettingsService.InitializeAsync();
         _settings = SettingsService.Settings;
+
+        // If navigated to /integrations, switch to integrations tab
+        var uri = new Uri(Navigation!.Uri);
+        if (uri.AbsolutePath.TrimEnd('/').EndsWith("integrations", StringComparison.OrdinalIgnoreCase))
+            _activeTab = "integrations";
+
         StateHasChanged();
     }
+
+    [Inject] private NavigationManager? Navigation { get; set; }
 
     private async Task LoadSettings()
     {
@@ -592,4 +978,171 @@
     private void OnDisplayClick() => SetActiveTab("display");
     private void OnAgentsClick() => SetActiveTab("agents");
     private void OnSecurityClick() => SetActiveTab("security");
+    private void OnIntegrationsClick() => SetActiveTab("integrations");
+
+    #region Integration State & Methods
+
+    // Card expansion (Azure only - GH & ADO are always expanded)
+    private bool _azureExpanded = true;
+
+    // Password visibility
+    private bool _showAzurePassword;
+    private bool _showAzureSecret;
+    private bool _showGitHubToken;
+    private bool _showAdoToken;
+
+    // Save state
+    private bool _integrationSaving;
+    private string? _integrationSaveMessage;
+    private bool _integrationSaveSuccess;
+
+    // Azure test
+    private bool _azureTesting;
+    private bool _azureTestSuccess;
+    private string? _azureTestMessage;
+
+    // GitHub test
+    private bool _githubTesting;
+    private bool _githubTestSuccess;
+    private string? _githubTestMessage;
+
+    // ADO test
+    private bool _adoTesting;
+    private bool _adoTestSuccess;
+    private string? _adoTestMessage;
+
+    // ADO project list
+    private List<string> _adoProjects = new();
+    private bool _adoProjectsLoading;
+    private bool _adoProjectsSuccess;
+    private string? _adoProjectsMessage;
+
+    private void SetAzureAuthMethod(string method)
+    {
+        _settings.Integrations.Azure.AuthMethod = method;
+        _settings.Integrations.Azure.UseManagedIdentity = method == "managedIdentity";
+    }
+
+    private async Task TestAzureConnection()
+    {
+        _azureTesting = true;
+        _azureTestMessage = null;
+        StateHasChanged();
+        try
+        {
+            var result = await IntegrationsApi.TestAzureConnectionAsync(new AzureIntegrationSettings
+            {
+                Enabled = _settings.Integrations.Azure.Enabled,
+                CloudEnvironment = _settings.Integrations.Azure.CloudEnvironment,
+                TenantId = _settings.Integrations.Azure.TenantId,
+                SubscriptionId = _settings.Integrations.Azure.SubscriptionId,
+                AuthMethod = _settings.Integrations.Azure.AuthMethod,
+                ClientId = _settings.Integrations.Azure.ClientId,
+                ClientSecret = _settings.Integrations.Azure.ClientSecret,
+                Username = _settings.Integrations.Azure.Username,
+                Password = _settings.Integrations.Azure.Password,
+                UseManagedIdentity = _settings.Integrations.Azure.UseManagedIdentity
+            });
+            _azureTestSuccess = result?.Success ?? false;
+            _azureTestMessage = result?.Message ?? "No response.";
+        }
+        catch (Exception ex) { _azureTestSuccess = false; _azureTestMessage = ex.Message; }
+        finally { _azureTesting = false; }
+    }
+
+    private async Task TestGitHubConnection()
+    {
+        _githubTesting = true;
+        _githubTestMessage = null;
+        StateHasChanged();
+        try
+        {
+            var result = await IntegrationsApi.TestGitHubConnectionAsync(new GitHubIntegrationSettings
+            {
+                Enabled = _settings.Integrations.GitHub.Enabled,
+                Organization = _settings.Integrations.GitHub.Organization,
+                Token = _settings.Integrations.GitHub.Token,
+                ApiBaseUrl = _settings.Integrations.GitHub.ApiBaseUrl
+            });
+            _githubTestSuccess = result?.Success ?? false;
+            _githubTestMessage = result?.Message ?? "No response.";
+        }
+        catch (Exception ex) { _githubTestSuccess = false; _githubTestMessage = ex.Message; }
+        finally { _githubTesting = false; }
+    }
+
+    private async Task TestAdoConnection()
+    {
+        _adoTesting = true;
+        _adoTestMessage = null;
+        StateHasChanged();
+        try
+        {
+            var result = await IntegrationsApi.TestAdoConnectionAsync(new AdoIntegrationSettings
+            {
+                Enabled = _settings.Integrations.AzureDevOps.Enabled,
+                ServerType = _settings.Integrations.AzureDevOps.ServerType,
+                ServerUrl = _settings.Integrations.AzureDevOps.ServerUrl,
+                AccessToken = _settings.Integrations.AzureDevOps.AccessToken,
+                DefaultCollection = _settings.Integrations.AzureDevOps.DefaultCollection,
+                Project = _settings.Integrations.AzureDevOps.Project
+            });
+            _adoTestSuccess = result?.Success ?? false;
+            _adoTestMessage = result?.Message ?? "No response.";
+        }
+        catch (Exception ex) { _adoTestSuccess = false; _adoTestMessage = ex.Message; }
+        finally { _adoTesting = false; }
+    }
+
+    private async Task FetchAdoProjects()
+    {
+        _adoProjectsLoading = true;
+        _adoProjectsMessage = null;
+        StateHasChanged();
+        try
+        {
+            var projects = await IntegrationsApi.GetAdoProjectsAsync(new AdoIntegrationSettings
+            {
+                ServerType = _settings.Integrations.AzureDevOps.ServerType,
+                ServerUrl = _settings.Integrations.AzureDevOps.ServerUrl,
+                AccessToken = _settings.Integrations.AzureDevOps.AccessToken,
+                DefaultCollection = _settings.Integrations.AzureDevOps.DefaultCollection
+            });
+            _adoProjects = projects ?? new();
+            _adoProjectsSuccess = _adoProjects.Count > 0;
+            _adoProjectsMessage = _adoProjects.Count > 0
+                ? $"Found {_adoProjects.Count} projects"
+                : "No projects found. Check URL and PAT.";
+        }
+        catch (Exception ex)
+        {
+            _adoProjectsSuccess = false;
+            _adoProjectsMessage = ex.Message;
+        }
+        finally { _adoProjectsLoading = false; }
+    }
+
+    private async Task SaveIntegrationSettings()
+    {
+        _integrationSaving = true;
+        _integrationSaveMessage = null;
+        StateHasChanged();
+        try
+        {
+            await SettingsService.SaveSettingsAsync(_settings);
+            await IntegrationsApi.SaveIntegrationsAsync(_settings.Integrations);
+            _integrationSaveSuccess = true;
+            _integrationSaveMessage = "Integration settings saved successfully.";
+            ToastService.ShowSuccess("Integration settings saved.");
+        }
+        catch (Exception ex)
+        {
+            _integrationSaveSuccess = false;
+            _integrationSaveMessage = $"Failed to save: {ex.Message}";
+            ToastService.ShowError($"Failed to save: {ex.Message}");
+        }
+        finally { _integrationSaving = false; }
+    }
+
+    #endregion
 }

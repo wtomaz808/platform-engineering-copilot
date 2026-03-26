@@ -24,6 +24,8 @@ builder.Services.AddScoped<TemplateApiService>();
 builder.Services.AddScoped<EnvironmentApiService>();
 builder.Services.AddScoped<ComplianceApiService>();
 builder.Services.AddScoped<DevPortalApiService>();
+builder.Services.AddScoped<IntegrationsApiService>();
+builder.Services.AddScoped<AzureResourcesApiService>();
 builder.Services.AddScoped<AppSettingsService>();
 
 // Add Blazored services

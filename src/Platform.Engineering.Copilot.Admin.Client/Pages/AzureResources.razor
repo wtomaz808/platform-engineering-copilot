@@ -1,0 +1,393 @@
+@page "/environments/azure-resources"
+@inject AzureResourcesApiService AzureResourcesApi
+@inject NavigationManager Navigation
+@inject IToastService ToastService
+
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="environments">Environments</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Existing Azure Resources</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Existing Azure Resources</h4>
+        <small class="text-muted">View your Azure tenant, subscription, management groups, policies, resource groups, and Entra ID info</small>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" @onclick="LoadData" disabled="@_loading">
+        @if (_loading)
+        {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        <i class="fa fa-sync me-1"></i>Refresh
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="text-muted mt-2">Fetching Azure resources...</p>
+    </div>
+}
+else if (_overview == null || _overview.Status == "not_configured")
+{
+    <div class="alert alert-warning">
+        <i class="fa fa-exclamation-triangle me-2"></i>
+        <strong>Azure integration not configured.</strong>
+        <a href="settings" class="alert-link ms-1" @onclick:preventDefault @onclick='() => Navigation.NavigateTo("/settings")'>
+            Go to Settings &gt; Integrations
+        </a> to configure your Azure connection.
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(_overview.Message))
+    {
+        <div class="alert alert-info small">
+            <i class="fa fa-info-circle me-1"></i>@_overview.Message
+        </div>
+    }
+
+    <div class="row g-4">
+        <!-- Tenant Info -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center gap-2 py-2">
+                    <i class="fa fa-building text-primary"></i>
+                    <strong>Tenant Information</strong>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted" style="width:40%">Tenant ID</td>
+                                <td class="font-monospace small">@_overview.TenantInfo.TenantId</td>
+                            </tr>
+                            @if (!string.IsNullOrEmpty(_overview.TenantInfo.TenantDisplayName))
+                            {
+                                <tr>
+                                    <td class="text-muted">Display Name</td>
+                                    <td>@_overview.TenantInfo.TenantDisplayName</td>
+                                </tr>
+                            }
+                            <tr>
+                                <td class="text-muted">Cloud</td>
+                                <td>
+                                    <span class="badge @(_overview.TenantInfo.CloudEnvironment == "AzureGovernment" ? "bg-warning text-dark" : "bg-primary")">
+                                        @(_overview.TenantInfo.CloudEnvironment == "AzureGovernment" ? "Azure Government" : "Azure Commercial")
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Auth Method</td>
+                                <td>
+                                    @switch (_overview.TenantInfo.AuthMethod)
+                                    {
+                                        case "credentials":
+                                            <span><i class="fa fa-user me-1"></i>Username / Password</span>
+                                            break;
+                                        case "servicePrincipal":
+                                            <span><i class="fa fa-key me-1"></i>Service Principal</span>
+                                            break;
+                                        case "managedIdentity":
+                                            <span><i class="fa fa-shield-alt me-1"></i>Managed Identity</span>
+                                            break;
+                                        default:
+                                            <span>@_overview.TenantInfo.AuthMethod</span>
+                                            break;
+                                    }
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subscription Info -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center gap-2 py-2">
+                    <i class="fa fa-credit-card text-success"></i>
+                    <strong>Subscription</strong>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted" style="width:40%">Subscription ID</td>
+                                <td class="font-monospace small">@_overview.SubscriptionInfo.SubscriptionId</td>
+                            </tr>
+                            @if (!string.IsNullOrEmpty(_overview.SubscriptionInfo.DisplayName))
+                            {
+                                <tr>
+                                    <td class="text-muted">Display Name</td>
+                                    <td>@_overview.SubscriptionInfo.DisplayName</td>
+                                </tr>
+                            }
+                            @if (!string.IsNullOrEmpty(_overview.SubscriptionInfo.State))
+                            {
+                                <tr>
+                                    <td class="text-muted">State</td>
+                                    <td>
+                                        <span class="badge @(_overview.SubscriptionInfo.State == "Enabled" ? "bg-success" : "bg-secondary")">
+                                            @_overview.SubscriptionInfo.State
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Management Groups -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center justify-content-between py-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa fa-sitemap text-info"></i>
+                        <strong>Management Groups</strong>
+                    </div>
+                    <span class="badge bg-secondary">@_overview.ManagementGroups.Count</span>
+                </div>
+                <div class="card-body">
+                    @if (_overview.ManagementGroups.Count == 0)
+                    {
+                        <p class="text-muted small mb-0">
+                            <i class="fa fa-info-circle me-1"></i>No management groups discovered. Verify your Azure credentials in Settings &gt; Integrations.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var mg in _overview.ManagementGroups)
+                            {
+                                <div class="list-group-item px-0 py-2">
+                                    <div class="fw-semibold">@(string.IsNullOrEmpty(mg.DisplayName) ? mg.Name : mg.DisplayName)</div>
+                                    <small class="text-muted font-monospace">@mg.Id</small>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Policies -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center justify-content-between py-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa fa-gavel text-warning"></i>
+                        <strong>Policy Assignments</strong>
+                    </div>
+                    <span class="badge bg-secondary">@_overview.Policies.Count</span>
+                </div>
+                <div class="card-body">
+                    @if (_overview.Policies.Count == 0)
+                    {
+                        <p class="text-muted small mb-0">
+                            <i class="fa fa-info-circle me-1"></i>No policies discovered. Verify your Azure credentials in Settings &gt; Integrations.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Enforcement</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var pol in _overview.Policies.Take(20))
+                                    {
+                                        <tr>
+                                            <td class="small">@(string.IsNullOrEmpty(pol.DisplayName) ? pol.Name : pol.DisplayName)</td>
+                                            <td>
+                                                <span class="badge @(pol.EnforcementMode == "Default" ? "bg-success" : "bg-warning text-dark")">
+                                                    @(string.IsNullOrEmpty(pol.EnforcementMode) ? "Default" : pol.EnforcementMode)
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (_overview.Policies.Count > 20)
+                        {
+                            <small class="text-muted">Showing 20 of @_overview.Policies.Count policies</small>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Resource Groups -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex align-items-center justify-content-between py-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa fa-layer-group text-primary"></i>
+                        <strong>Resource Groups</strong>
+                    </div>
+                    <span class="badge bg-secondary">@_overview.ResourceGroups.Count</span>
+                </div>
+                <div class="card-body">
+                    @if (_overview.ResourceGroups.Count == 0)
+                    {
+                        <p class="text-muted small mb-0">
+                            <i class="fa fa-info-circle me-1"></i>No resource groups discovered. Verify your Azure credentials in Settings &gt; Integrations.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Location</th>
+                                        <th>State</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var rg in PagedResourceGroups)
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold">@rg.Name</td>
+                                            <td class="small">@rg.Location</td>
+                                            <td>
+                                                <span class="badge @(rg.ProvisioningState == "Succeeded" ? "bg-success" : "bg-secondary")">
+                                                    @(string.IsNullOrEmpty(rg.ProvisioningState) ? "Unknown" : rg.ProvisioningState)
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (_overview.ResourceGroups.Count > RgPageSize)
+                        {
+                            <div class="d-flex justify-content-between align-items-center mt-3 px-2">
+                                <small class="text-muted">Showing @RgStart–@RgEnd of @_overview.ResourceGroups.Count resource groups</small>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" disabled="@(_rgPage == 0)" @onclick="() => _rgPage--">
+                                        <i class="fa fa-chevron-left me-1"></i>Previous
+                                    </button>
+                                    <button class="btn btn-outline-secondary" disabled="@(_rgPage >= RgTotalPages - 1)" @onclick="() => _rgPage++">
+                                        Next<i class="fa fa-chevron-right ms-1"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Entra ID Info -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex align-items-center gap-2 py-2">
+                    <i class="fa fa-id-badge text-purple" style="color:#6f42c1"></i>
+                    <strong>Entra ID (Azure AD)</strong>
+                </div>
+                <div class="card-body">
+                    @if (_overview.EntraIdInfo.UserCount == null && string.IsNullOrEmpty(_overview.EntraIdInfo.TenantDisplayName))
+                    {
+                        <p class="text-muted small mb-0">
+                            <i class="fa fa-info-circle me-1"></i>Entra ID data requires Microsoft Graph API access. This feature is coming soon.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="row g-3">
+                            @if (!string.IsNullOrEmpty(_overview.EntraIdInfo.TenantDisplayName))
+                            {
+                                <div class="col-md-3">
+                                    <div class="border rounded p-3 text-center">
+                                        <div class="text-muted small">Tenant Name</div>
+                                        <div class="fw-bold">@_overview.EntraIdInfo.TenantDisplayName</div>
+                                    </div>
+                                </div>
+                            }
+                            @if (_overview.EntraIdInfo.UserCount.HasValue)
+                            {
+                                <div class="col-md-3">
+                                    <div class="border rounded p-3 text-center">
+                                        <div class="h4 mb-0">@_overview.EntraIdInfo.UserCount</div>
+                                        <div class="text-muted small">Users</div>
+                                    </div>
+                                </div>
+                            }
+                            @if (_overview.EntraIdInfo.GroupCount.HasValue)
+                            {
+                                <div class="col-md-3">
+                                    <div class="border rounded p-3 text-center">
+                                        <div class="h4 mb-0">@_overview.EntraIdInfo.GroupCount</div>
+                                        <div class="text-muted small">Groups</div>
+                                    </div>
+                                </div>
+                            }
+                            @if (_overview.EntraIdInfo.AppRegistrationCount.HasValue)
+                            {
+                                <div class="col-md-3">
+                                    <div class="border rounded p-3 text-center">
+                                        <div class="h4 mb-0">@_overview.EntraIdInfo.AppRegistrationCount</div>
+                                        <div class="text-muted small">App Registrations</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private AzureResourceOverview? _overview;
+    private bool _loading = true;
+    private int _rgPage = 0;
+
+    private const int RgPageSize = 10;
+    private int RgTotalPages => _overview == null ? 1 : (int)Math.Ceiling(_overview.ResourceGroups.Count / (double)RgPageSize);
+    private List<ResourceGroup> PagedResourceGroups => _overview?.ResourceGroups.Skip(_rgPage * RgPageSize).Take(RgPageSize).ToList() ?? new();
+    private int RgStart => _rgPage * RgPageSize + 1;
+    private int RgEnd => _overview == null ? 0 : Math.Min((_rgPage + 1) * RgPageSize, _overview.ResourceGroups.Count);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            _overview = await AzureResourcesApi.GetOverviewAsync();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load Azure resources: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+}

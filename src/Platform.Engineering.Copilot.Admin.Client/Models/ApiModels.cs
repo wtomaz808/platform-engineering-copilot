@@ -588,33 +588,12 @@ public class DeployedResourceList
 
 #region Developer Portal Models
 
-public class DevOpsConnection
+public class IntegrationStatus
 {
-    public string Id { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string Provider { get; set; } = string.Empty; // "GitHub", "AzureDevOps", or "AdoServer"
-    public string ServerUrl { get; set; } = string.Empty;
-    public string? Organization { get; set; }
-    public string? Project { get; set; }
-    public string? Collection { get; set; }
-    public string Status { get; set; } = "Disconnected";
-    public DateTime? ConnectedAt { get; set; }
-    public DateTime? LastSyncedAt { get; set; }
-    public string? ConnectedBy { get; set; }
-    public int RepositoryCount { get; set; }
-    public int WorkItemCount { get; set; }
-    public int PipelineCount { get; set; }
-}
-
-public class CreateConnectionRequest
-{
-    public string Name { get; set; } = string.Empty;
     public string Provider { get; set; } = string.Empty;
-    public string ServerUrl { get; set; } = string.Empty;
-    public string? AccessToken { get; set; }
+    public bool Enabled { get; set; }
     public string? Organization { get; set; }
-    public string? Project { get; set; }
-    public string? Collection { get; set; }
+    public string? ServerUrl { get; set; }
 }
 
 public class ConnectionTestResult
@@ -629,7 +608,6 @@ public class ConnectionTestResult
 public class DevPortalRepository
 {
     public string Id { get; set; } = string.Empty;
-    public string ConnectionId { get; set; } = string.Empty;
     public string Provider { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
@@ -646,15 +624,75 @@ public class DevPortalRepository
     public DateTime? CreatedAt { get; set; }
 }
 
+#region Azure Resources
+
+public class AzureResourceOverview
+{
+    public string Status { get; set; } = "not_configured";
+    public string? Message { get; set; }
+    public TenantInfo TenantInfo { get; set; } = new();
+    public SubscriptionInfo SubscriptionInfo { get; set; } = new();
+    public List<ManagementGroup> ManagementGroups { get; set; } = new();
+    public List<PolicyAssignment> Policies { get; set; } = new();
+    public List<ResourceGroup> ResourceGroups { get; set; } = new();
+    public EntraIdInfo EntraIdInfo { get; set; } = new();
+}
+
+public class TenantInfo
+{
+    public string TenantId { get; set; } = "";
+    public string CloudEnvironment { get; set; } = "";
+    public string AuthMethod { get; set; } = "";
+    public string? TenantDisplayName { get; set; }
+}
+
+public class SubscriptionInfo
+{
+    public string SubscriptionId { get; set; } = "";
+    public string? DisplayName { get; set; }
+    public string? State { get; set; }
+}
+
+public class ManagementGroup
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+}
+
+public class PolicyAssignment
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string EnforcementMode { get; set; } = "";
+}
+
+public class ResourceGroup
+{
+    public string Name { get; set; } = "";
+    public string Location { get; set; } = "";
+    public string ProvisioningState { get; set; } = "";
+}
+
+public class EntraIdInfo
+{
+    public string? TenantDisplayName { get; set; }
+    public int? UserCount { get; set; }
+    public int? GroupCount { get; set; }
+    public int? AppRegistrationCount { get; set; }
+}
+
+#endregion
+
 public class DevPortalWorkItem
 {
     public string Id { get; set; } = string.Empty;
-    public string ConnectionId { get; set; } = string.Empty;
     public string Provider { get; set; } = string.Empty;
-    public string Type { get; set; } = string.Empty; // Issue, Bug, UserStory, Task, Epic
+    public string Type { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public string State { get; set; } = string.Empty; // Open, Active, Closed, etc.
+    public string State { get; set; } = string.Empty;
     public string? AssignedTo { get; set; }
     public string? Priority { get; set; }
     public List<string> Labels { get; set; } = new();
@@ -669,11 +707,10 @@ public class DevPortalWorkItem
 public class DevPortalPipeline
 {
     public string Id { get; set; } = string.Empty;
-    public string ConnectionId { get; set; } = string.Empty;
     public string Provider { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string RepositoryName { get; set; } = string.Empty;
-    public string? Status { get; set; } // Success, Failure, InProgress, Queued
+    public string? Status { get; set; }
     public string? Conclusion { get; set; }
     public string? Branch { get; set; }
     public string Url { get; set; } = string.Empty;
@@ -685,11 +722,10 @@ public class DevPortalPipeline
 public class DevPortalArtifact
 {
     public string Id { get; set; } = string.Empty;
-    public string ConnectionId { get; set; } = string.Empty;
     public string Provider { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Version { get; set; }
-    public string Type { get; set; } = string.Empty; // NuGet, npm, Container, Universal
+    public string Type { get; set; } = string.Empty;
     public string? FeedName { get; set; }
     public string? RepositoryName { get; set; }
     public long? SizeBytes { get; set; }
@@ -699,21 +735,12 @@ public class DevPortalArtifact
 
 public class DevPortalSummary
 {
-    public int TotalConnections { get; set; }
-    public int ActiveConnections { get; set; }
+    public int EnabledIntegrations { get; set; }
     public int TotalRepositories { get; set; }
     public int OpenWorkItems { get; set; }
     public int ActivePipelines { get; set; }
     public int RecentDeployments { get; set; }
-    public List<DevOpsConnection> Connections { get; set; } = new();
-}
-
-public class SyncResult
-{
-    public bool Success { get; set; }
-    public string? Message { get; set; }
-    public int ItemsSynced { get; set; }
-    public List<string>? Errors { get; set; }
+    public List<IntegrationStatus> Integrations { get; set; } = new();
 }
 
 #endregion
