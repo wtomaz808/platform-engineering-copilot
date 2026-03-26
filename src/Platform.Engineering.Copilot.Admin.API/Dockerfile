@@ -84,6 +84,9 @@ RUN groupadd --gid 1000 appgroup && \
 # Copy published application
 COPY --from=publish /app/publish .
 
+# Create writable settings directory for integration config persistence
+RUN mkdir -p /app/settings
+
 # Set permissions
 RUN chown -R appuser:appgroup /app
 

@@ -1,7 +1,10 @@
-@page "/portal"
-@inject DevPortalApiService DevPortalApi
-@inject IToastService ToastService
-@inject NavigationManager Navigation
+"""Write the new DevPortal.razor file."""
+import os, sys
+
+content = """\x40page "/portal"
+\x40inject DevPortalApiService DevPortalApi
+\x40inject IToastService ToastService
+\x40inject NavigationManager Navigation
 
 <div class="row mb-4">
     <div class="col-12">
@@ -10,7 +13,7 @@
     </div>
 </div>
 
-@if (_loading)
+\x40if (_loading)
 {
     <div class="d-flex justify-content-center py-5">
         <div class="spinner-border text-primary" role="status">
@@ -22,25 +25,25 @@ else
 {
     <!-- Integration Status Cards -->
     <div class="row mb-4">
-        @foreach (var integ in (_summary?.Integrations ?? new()))
+        \x40foreach (var integ in (_summary?.Integrations ?? new()))
         {
             <div class="col-md-4 mb-3">
                 <div class="card h-100">
                     <div class="card-body d-flex align-items-center justify-content-between">
                         <div class="d-flex align-items-center gap-3">
                             <div class="rounded-circle d-flex align-items-center justify-content-center"
-                                 style="width:40px;height:40px;background:@(integ.Enabled ? "rgba(40,167,69,0.15)" : "rgba(108,117,125,0.15)")">
-                                <i class="fa @GetProviderIcon(integ.Provider) @(integ.Enabled ? "text-success" : "text-muted")"></i>
+                                 style="width:40px;height:40px;background:\x40(integ.Enabled ? "rgba(40,167,69,0.15)" : "rgba(108,117,125,0.15)")">
+                                <i class="fa \x40GetProviderIcon(integ.Provider) \x40(integ.Enabled ? "text-success" : "text-muted")"></i>
                             </div>
                             <div>
-                                <strong>@integ.Provider</strong>
+                                <strong>\x40integ.Provider</strong>
                                 <br />
-                                @if (integ.Enabled)
+                                \x40if (integ.Enabled)
                                 {
                                     <small class="text-success"><i class="fa fa-check-circle me-1"></i>Connected</small>
-                                    @if (!string.IsNullOrEmpty(integ.Organization))
+                                    \x40if (!string.IsNullOrEmpty(integ.Organization))
                                     {
-                                        <small class="text-muted ms-2">@integ.Organization</small>
+                                        <small class="text-muted ms-2">\x40integ.Organization</small>
                                     }
                                 }
                                 else
@@ -49,7 +52,7 @@ else
                                 }
                             </div>
                         </div>
-                        @if (!integ.Enabled)
+                        \x40if (!integ.Enabled)
                         {
                             <a href="integrations" class="btn btn-sm btn-outline-primary">Configure</a>
                         }
@@ -63,7 +66,7 @@ else
     <h6 class="text-muted text-uppercase fw-bold mb-3"><i class="fa fa-folder-open me-2"></i>Resources</h6>
     <div class="row mb-4">
         <div class="col-md-4 mb-3">
-            <div class="card clickable-card h-100" @onclick='() => Navigation.NavigateTo("portal/repositories")'>
+            <div class="card clickable-card h-100" \x40onclick='() => Navigation.NavigateTo("portal/repositories")'>
                 <div class="card-body text-center py-4">
                     <i class="fa fa-code-branch fa-2x text-primary mb-3"></i>
                     <h6>Repositories</h6>
@@ -72,7 +75,7 @@ else
             </div>
         </div>
         <div class="col-md-4 mb-3">
-            <div class="card clickable-card h-100" @onclick='() => Navigation.NavigateTo("portal/workitems")'>
+            <div class="card clickable-card h-100" \x40onclick='() => Navigation.NavigateTo("portal/workitems")'>
                 <div class="card-body text-center py-4">
                     <i class="fa fa-tasks fa-2x text-warning mb-3"></i>
                     <h6>Work Items / Issues</h6>
@@ -81,7 +84,7 @@ else
             </div>
         </div>
         <div class="col-md-4 mb-3">
-            <div class="card clickable-card h-100" @onclick='() => Navigation.NavigateTo("portal/pipelines")'>
+            <div class="card clickable-card h-100" \x40onclick='() => Navigation.NavigateTo("portal/pipelines")'>
                 <div class="card-body text-center py-4">
                     <i class="fa fa-play-circle fa-2x text-success mb-3"></i>
                     <h6>Pipelines / Actions</h6>
@@ -150,7 +153,7 @@ else
     .text-orange { color: #ea580c; }
 </style>
 
-@code {
+\x40code {
     private bool _loading = true;
     private DevPortalSummary? _summary;
 
@@ -178,3 +181,9 @@ else
         _ => "fa-plug"
     };
 }
+"""
+
+target = os.path.join("src", "Platform.Engineering.Copilot.Admin.Client", "Pages", "DevPortal.razor")
+with open(target, "w", encoding="utf-8") as f:
+    f.write(content)
+print(f"Written {len(content)} chars to {target}")

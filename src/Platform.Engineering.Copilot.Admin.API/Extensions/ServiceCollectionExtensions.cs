@@ -12,6 +12,7 @@ using Platform.Engineering.Copilot.Core.Services;
 using Platform.Engineering.Copilot.Core.Services.Azure;
 using Platform.Engineering.Copilot.Agents.Environments.Services;
 using Platform.Engineering.Copilot.Agents.Infrastructure.Deployment;
+using Platform.Engineering.Copilot.Admin.API.Services;
 
 namespace Platform.Engineering.Copilot.Admin.API.Extensions;
 
@@ -48,6 +49,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITemplateDeployer, TerraformDeployer>();
         services.AddScoped<IDeployerFactory, DeployerFactory>();
         services.Configure<DeployerOptions>(configuration.GetSection("Deployment"));
+        
+        // Register shared Azure auth service
+        services.AddSingleton<IAzureAuthService, AzureAuthService>();
         
         // Register Azure services for querying and managing Azure resources
         services.Configure<Core.Configuration.GatewayOptions>(configuration.GetSection("Gateway"));

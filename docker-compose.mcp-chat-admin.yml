@@ -17,6 +17,7 @@ networks:
 volumes:
   sqlserver-data:
   platform-logs:
+  admin-api-settings:
 
 services:
   # SQL Server 2022 Database (linux/amd64 - standard x64 host)
@@ -202,6 +203,7 @@ services:
       start_period: 40s
     volumes:
       - platform-logs:/app/logs
+      - admin-api-settings:/app/settings
     networks:
       - platform-network
 

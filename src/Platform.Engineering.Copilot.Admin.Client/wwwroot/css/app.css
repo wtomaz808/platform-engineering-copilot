@@ -448,11 +448,13 @@ html, body {
     width: var(--sidebar-width);
     background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
     color: white;
-    min-height: 100vh;
+    height: 100vh;
     position: fixed;
     left: 0;
     top: 0;
     z-index: 1000;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .sidebar-header {
