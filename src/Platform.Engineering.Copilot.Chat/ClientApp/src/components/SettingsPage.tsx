@@ -129,6 +129,12 @@ const agents = [
     description:
       'Azure DevOps project and repository management, work item tracking (User Stories, Tasks, Bugs, Epics), Azure Pipelines management, and team configuration.',
   },
+  {
+    icon: '🚀',
+    name: 'Modernization Agent',
+    description:
+      'Modernization and migration of on-premises .NET applications to Azure Government. Application readiness assessment, database migration planning, containerization feasibility, security scanning, compliance readiness (FedRAMP/NIST), and phased migration plan generation.',
+  },
 ];
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {

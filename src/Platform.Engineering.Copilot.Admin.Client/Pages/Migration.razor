@@ -1,23 +1,30 @@
 @page "/migration"
 @inject MigrationApiService MigrationApi
+@inject DevPortalApiService DevPortalApi
 @inject IToastService ToastService
+@inject IJSRuntime JS
 
 <PageTitle>Migration &amp; Modernization</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4><i class="fa fa-exchange-alt me-2"></i>Migration &amp; Modernization</h4>
-    <button class="btn btn-primary" @onclick="RefreshDashboard" disabled="@_refreshing">
-        @if (_refreshing)
-        {
-            <span class="spinner-border spinner-border-sm me-1"></span>
-            <span>Refreshing...</span>
-        }
-        else
-        {
-            <i class="fa fa-sync-alt me-1"></i>
-            <span>Refresh</span>
-        }
-    </button>
+    <div class="d-flex gap-2">
+        <button class="btn btn-success" @onclick="StartNewAssessment">
+            <i class="fa fa-plus me-1"></i>New Assessment
+        </button>
+        <button class="btn btn-primary" @onclick="RefreshDashboard" disabled="@_refreshing">
+            @if (_refreshing)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+                <span>Refreshing...</span>
+            }
+            else
+            {
+                <i class="fa fa-sync-alt me-1"></i>
+                <span>Refresh</span>
+            }
+        </button>
+    </div>
 </div>
 
 @if (_loading)
@@ -70,15 +77,15 @@ else
     }
 
     <!-- Assessment Form -->
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span><i class="fa fa-clipboard-check me-2"></i>New Migration Assessment</span>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleForm">
-                <i class="fa @(_showForm ? "fa-chevron-up" : "fa-chevron-down")"></i>
-            </button>
-        </div>
-        @if (_showForm)
-        {
+    @if (_showForm)
+    {
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fa fa-clipboard-check me-2"></i>New Migration Assessment</span>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleForm">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6 mb-3">
@@ -136,6 +143,36 @@ else
                 </div>
                 <div class="row">
                     <div class="col-md-6 mb-3">
+                        <label class="form-label">Source Control Platform</label>
+                        <select class="form-select" value="@_request.SourceControlPlatform" @onchange="OnSourceControlChanged">
+                            <option value="">-- Select --</option>
+                            <option value="GitHub">GitHub</option>
+                            <option value="Azure DevOps Server">Azure DevOps Server</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Repository to Review</label>
+                        @if (_loadingRepos)
+                        {
+                            <div class="d-flex align-items-center form-control bg-light">
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span class="text-muted">Loading repositories...</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <select class="form-select" @bind="_request.RepositoryName" disabled="@(string.IsNullOrEmpty(_request.SourceControlPlatform))">
+                                <option value="">@(string.IsNullOrEmpty(_request.SourceControlPlatform) ? "Select a source control platform first" : "-- Select Repository --")</option>
+                                @foreach (var repo in _repositories)
+                                {
+                                    <option value="@repo.FullName">@repo.FullName</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
                         <label class="form-label">Preferred Azure Target (optional)</label>
                         <select class="form-select" @bind="_request.TargetService">
                             <option value="">Auto-recommend</option>
@@ -181,16 +218,21 @@ else
                     </button>
                 </div>
             </div>
-        }
-    </div>
+        </div>
+    }
 
     <!-- Latest Assessment Result -->
     @if (_latestAssessment != null)
     {
         <div class="card mb-4 border-@GetScoreBorderColor(_latestAssessment.OverallReadinessScore)">
-            <div class="card-header bg-@GetScoreBgColor(_latestAssessment.OverallReadinessScore) text-white">
-                <i class="fa fa-chart-bar me-2"></i>Assessment: @_latestAssessment.ApplicationName
-                <span class="badge bg-light text-dark ms-2">@_latestAssessment.RecommendedStrategy</span>
+            <div class="card-header bg-@GetScoreBgColor(_latestAssessment.OverallReadinessScore) text-white d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="fa fa-chart-bar me-2"></i>Assessment: @_latestAssessment.ApplicationName
+                    <span class="badge bg-light text-dark ms-2">@_latestAssessment.RecommendedStrategy</span>
+                </span>
+                <button class="btn btn-sm btn-outline-light" @onclick="ExportAssessment" title="Export as JSON">
+                    <i class="fa fa-download me-1"></i>Export
+                </button>
             </div>
             <div class="card-body">
                 <!-- Readiness Scores -->
@@ -320,8 +362,11 @@ else
     @if (_recommendations != null && _recommendations.Recommendations.Count > 0)
     {
         <div class="card mb-4">
-            <div class="card-header">
-                <i class="fa fa-bullseye me-2"></i>Azure Target Recommendations for @_recommendations.ApplicationName
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fa fa-bullseye me-2"></i>Azure Target Recommendations for @_recommendations.ApplicationName</span>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ExportRecommendations" title="Export recommendations as JSON">
+                    <i class="fa fa-download me-1"></i>Export
+                </button>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -371,12 +416,12 @@ else
         </div>
     }
 
-    <!-- Assessment History -->
-    @if (_dashboard != null && _dashboard.RecentAssessments.Count > 0)
+    <!-- Assessment History (paginated) -->
+    @if (_allAssessments.Count > 0)
     {
         <div class="card mb-4">
-            <div class="card-header">
-                <i class="fa fa-history me-2"></i>Assessment History
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fa fa-history me-2"></i>Assessment History (@_allAssessments.Count total)</span>
             </div>
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
@@ -392,7 +437,7 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var a in _dashboard.RecentAssessments)
+                        @foreach (var a in PagedAssessments)
                         {
                             <tr>
                                 <td class="fw-bold">@a.ApplicationName</td>
@@ -425,6 +470,29 @@ else
                     </tbody>
                 </table>
             </div>
+            @if (TotalPages > 1)
+            {
+                <div class="card-footer d-flex justify-content-between align-items-center">
+                    <small class="text-muted">Showing @((_currentPage - 1) * PageSize + 1)–@Math.Min(_currentPage * PageSize, _allAssessments.Count) of @_allAssessments.Count</small>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(_currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="PreviousPage" disabled="@(_currentPage <= 1)">Previous</button>
+                            </li>
+                            @for (int i = 1; i <= TotalPages; i++)
+                            {
+                                var page = i;
+                                <li class="page-item @(GetPageItemClass(page))">
+                                    <button class="page-link" @onclick="() => GoToPage(page)">@(page)</button>
+                                </li>
+                            }
+                            <li class="page-item @(_currentPage >= TotalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="NextPage" disabled="@(_currentPage >= TotalPages)">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
         </div>
     }
 }
@@ -434,16 +502,29 @@ else
     private bool _refreshing;
     private bool _assessing;
     private bool _recommending;
-    private bool _showForm = true;
+    private bool _showForm;
+    private bool _loadingRepos;
 
     private MigrationDashboard? _dashboard;
     private MigrationAssessment? _latestAssessment;
     private TargetRecommendationsResponse? _recommendations;
     private MigrationAssessmentRequest _request = new();
+    private List<DevPortalRepository> _repositories = new();
+    private List<MigrationAssessment> _allAssessments = new();
+
+    // Pagination
+    private const int PageSize = 10;
+    private int _currentPage = 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(_allAssessments.Count / (double)PageSize));
+    private List<MigrationAssessment> PagedAssessments => _allAssessments
+        .Skip((_currentPage - 1) * PageSize)
+        .Take(PageSize)
+        .ToList();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadDashboard();
+        await LoadAllAssessments();
         _loading = false;
     }
 
@@ -459,12 +540,63 @@ else
         }
     }
 
+    private async Task LoadAllAssessments()
+    {
+        try
+        {
+            _allAssessments = await MigrationApi.GetAssessmentsAsync();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load assessments: {ex.Message}");
+        }
+    }
+
     private async Task RefreshDashboard()
     {
         _refreshing = true;
         await LoadDashboard();
+        await LoadAllAssessments();
+        _currentPage = 1;
         _refreshing = false;
         ToastService.ShowSuccess("Dashboard refreshed");
+    }
+
+    private void StartNewAssessment()
+    {
+        _request = new MigrationAssessmentRequest();
+        _latestAssessment = null;
+        _recommendations = null;
+        _repositories = new();
+        _showForm = true;
+    }
+
+    private async Task OnSourceControlChanged(ChangeEventArgs e)
+    {
+        var platform = e.Value?.ToString() ?? "";
+        _request.SourceControlPlatform = platform;
+        _request.RepositoryName = "";
+        _repositories = new();
+
+        if (string.IsNullOrEmpty(platform))
+            return;
+
+        _loadingRepos = true;
+        StateHasChanged();
+
+        try
+        {
+            var provider = platform == "GitHub" ? "github" : "ado";
+            _repositories = await DevPortalApi.GetRepositoriesAsync(provider);
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowWarning($"Could not load repositories: {ex.Message}");
+        }
+        finally
+        {
+            _loadingRepos = false;
+        }
     }
 
     private async Task RunAssessment()
@@ -480,6 +612,9 @@ else
         {
             _latestAssessment = await MigrationApi.RunAssessmentAsync(_request);
             await LoadDashboard();
+            await LoadAllAssessments();
+            _currentPage = 1;
+            _showForm = false;
             ToastService.ShowSuccess($"Assessment complete: {_latestAssessment?.OverallReadinessScore}% readiness");
         }
         catch (Exception ex)
@@ -519,6 +654,7 @@ else
     private void ViewAssessment(MigrationAssessment assessment)
     {
         _latestAssessment = assessment;
+        _showForm = false;
     }
 
     private async Task DeleteAssessment(string id)
@@ -527,8 +663,11 @@ else
         {
             await MigrationApi.DeleteAssessmentAsync(id);
             await LoadDashboard();
+            await LoadAllAssessments();
             if (_latestAssessment?.Id == id)
                 _latestAssessment = null;
+            if (_currentPage > TotalPages)
+                _currentPage = TotalPages;
             ToastService.ShowSuccess("Assessment deleted");
         }
         catch (Exception ex)
@@ -537,7 +676,36 @@ else
         }
     }
 
+    private async Task ExportAssessment()
+    {
+        if (_latestAssessment == null) return;
+        var json = System.Text.Json.JsonSerializer.Serialize(_latestAssessment, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        var fileName = $"assessment-{_latestAssessment.ApplicationName}-{_latestAssessment.AssessedAt:yyyyMMdd}.json";
+        await DownloadJson(fileName, json);
+    }
+
+    private async Task ExportRecommendations()
+    {
+        if (_recommendations == null) return;
+        var json = System.Text.Json.JsonSerializer.Serialize(_recommendations, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        var fileName = $"recommendations-{_recommendations.ApplicationName}-{DateTime.UtcNow:yyyyMMdd}.json";
+        await DownloadJson(fileName, json);
+    }
+
+    private async Task DownloadJson(string fileName, string content)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("eval", $"{{ const a=document.createElement('a'); a.href='data:application/json;base64,{base64}'; a.download='{fileName}'; document.body.appendChild(a); a.click(); a.remove(); }}");
+    }
+
     private void ToggleForm() => _showForm = !_showForm;
+
+    // Pagination
+    private void GoToPage(int page) => _currentPage = page;
+    private void PreviousPage() { if (_currentPage > 1) _currentPage--; }
+    private void NextPage() { if (_currentPage < TotalPages) _currentPage++; }
+    private string GetPageItemClass(int page) => page == _currentPage ? "active" : "";
 
     private static string GetScoreColor(int score) => score switch
     {

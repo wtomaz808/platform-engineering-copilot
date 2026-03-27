@@ -182,34 +182,34 @@ public class IntegrationsController : ControllerBase
 
         try
         {
-            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             var baseUrl = settings.ServerUrl.TrimEnd('/');
-            var collection = settings.DefaultCollection ?? "DefaultCollection";
 
-            // Build API URL based on server type
-            string apiUrl;
-            if (settings.ServerType == "server")
-                apiUrl = $"{baseUrl}/{collection}/_apis/projects?api-version=6.0";
-            else
-                apiUrl = $"{baseUrl}/_apis/projects?api-version=6.0";
+            // For ADO Server, include the collection in the path
+            if (settings.ServerType == "server" && !string.IsNullOrWhiteSpace(settings.DefaultCollection))
+                baseUrl = $"{baseUrl}/{settings.DefaultCollection.Trim('/')}";
+
+            // Use _apis/connectionData — the most universal ADO endpoint,
+            // works on all on-prem Server versions without requiring an api-version.
+            var apiUrl = $"{baseUrl}/_apis/connectionData";
 
             var request = new HttpRequestMessage(HttpMethod.Get, apiUrl);
             var encodedPat = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{settings.AccessToken}"));
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", encodedPat);
 
+            _logger.LogInformation("ADO test: calling {Url}", apiUrl);
             var response = await httpClient.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
-                var body = await response.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(body);
-                var count = doc.RootElement.TryGetProperty("count", out var c) ? c.GetInt32() : 0;
                 return Ok(new IntegrationTestResultDto
                 {
                     Success = true,
-                    Message = $"Connected to Azure DevOps. Found {count} projects."
+                    Message = "Connected to Azure DevOps successfully."
                 });
             }
 
+            var body = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("ADO test returned {Status}: {Body}", response.StatusCode, body);
             return Ok(new IntegrationTestResultDto
             {
                 Success = false,
@@ -218,6 +218,7 @@ public class IntegrationsController : ControllerBase
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "ADO connection test failed for {Url}", settings.ServerUrl);
             return Ok(new IntegrationTestResultDto { Success = false, Message = $"Cannot reach Azure DevOps: {ex.Message}" });
         }
     }

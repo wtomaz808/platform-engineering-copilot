@@ -291,19 +291,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               {/* INTELLIGENT CHAT METADATA */}
               {message.role === MessageRole.Assistant && message.metadata && (
                 <div className="mt-3 space-y-2">
+                  {/* Agent Badge */}
+                  {message.metadata.agentsInvoked && message.metadata.agentsInvoked.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
+                        <Bot size={12} />
+                        <span className="font-medium">Agent:</span>
+                        <span>{message.metadata.agentsInvoked.join(' → ')}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Intent Classification Badge */}
                   {message.metadata.intentType && (
                     <div className="flex items-center gap-2 text-xs">
-                      <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-200">
+                      <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700">
                         <Zap size={12} />
                         <span className="font-medium">Intent:</span>
                         <span>{message.metadata.intentType}</span>
                         {message.metadata.confidence && (
-                          <span className="text-blue-600">({Math.round(message.metadata.confidence * 100)}%)</span>
+                          <span className="text-blue-600 dark:text-blue-400">({Math.round(message.metadata.confidence * 100)}%)</span>
                         )}
                       </div>
                       {message.metadata.processingTimeMs && (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 text-gray-600 rounded border border-gray-200">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 text-gray-600 rounded border border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600">
                           <Clock size={12} />
                           <span>{message.metadata.processingTimeMs}ms</span>
                         </div>

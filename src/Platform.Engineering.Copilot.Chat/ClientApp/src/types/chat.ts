@@ -125,6 +125,7 @@ export interface MessageMetadata {
   toolChain?: ToolChainInfo;
   suggestions?: ProactiveSuggestion[];
   processingTimeMs?: number;
+  agentsInvoked?: string[];
   fallback?: boolean;
   error?: string;
   errorType?: string;

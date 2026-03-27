@@ -48,6 +48,14 @@
         </nav>
         
         <nav class="nav-section">
+            <div class="nav-section-title">Assessments</div>
+            <NavLink class="nav-link" href="migration">
+                <i class="fa fa-clipboard-check"></i>
+                <span>Migration &amp; Modernization</span>
+            </NavLink>
+        </nav>
+
+        <nav class="nav-section">
             <div class="nav-section-title">Developer Portal</div>
             <NavLink class="nav-link" href="portal">
                 <i class="fa fa-columns"></i>
@@ -84,14 +92,6 @@
             <NavLink class="nav-link" href="cost">
                 <i class="fa fa-dollar-sign"></i>
                 <span>Cost Management</span>
-            </NavLink>
-        </nav>
-
-        <nav class="nav-section">
-            <div class="nav-section-title">Migration</div>
-            <NavLink class="nav-link" href="migration">
-                <i class="fa fa-exchange-alt"></i>
-                <span>Migration &amp; Modernization</span>
             </NavLink>
         </nav>
 
@@ -168,6 +168,7 @@
             "portal/pipelines" => "Pipelines / Actions",
             "integrations" => "Settings",
             "settings" => "Settings",
+            "migration" => "Assessments",
             _ when path.StartsWith("templates/") => "Template Details",
             _ when path.StartsWith("environments/") => "Environment Details",
             _ when path.StartsWith("portal/") => "Developer Portal",

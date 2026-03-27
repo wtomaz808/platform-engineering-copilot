@@ -93,14 +93,16 @@ public class DevPortalController : ControllerBase
         var repos = new List<DevPortalRepoDto>();
         var settings = LoadIntegrationSettings();
 
+        var p = provider?.ToLowerInvariant();
+
         // GitHub repos
-        if (provider == null || provider == "GitHub")
+        if (p == null || p == "github")
         {
             repos.AddRange(await FetchGitHubRepos(settings));
         }
 
         // ADO repos
-        if (provider == null || provider == "AzureDevOps" || provider == "AdoServer")
+        if (p == null || p == "ado" || p == "azuredevops" || p == "adoserver")
         {
             repos.AddRange(await FetchAdoRepos(settings));
         }

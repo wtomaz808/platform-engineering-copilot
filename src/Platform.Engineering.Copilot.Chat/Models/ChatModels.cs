@@ -239,4 +239,5 @@ public class ResponseMetadata
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     public string? ModelUsed { get; set; }
     public int? TokensUsed { get; set; }
+    public List<string> AgentsInvoked { get; set; } = new();
 }

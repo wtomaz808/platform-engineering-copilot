@@ -899,6 +899,8 @@ public class MigrationAssessmentRequest
     public string? HostingEnvironment { get; set; }
     public string? DatabaseType { get; set; }
     public string? TargetService { get; set; }
+    public string? SourceControlPlatform { get; set; }
+    public string? RepositoryName { get; set; }
 }
 
 public class MigrationAssessment

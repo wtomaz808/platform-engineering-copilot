@@ -591,6 +591,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                     'Security Assessment',
                     'GitHub DevOps Automation',
                     'Infrastructure as Code Generation',
+                    'Modernization & Migration Assessment',
                   ].map(item => (
                     <div key={item} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                       <Check size={14} className="text-green-500 flex-shrink-0" />

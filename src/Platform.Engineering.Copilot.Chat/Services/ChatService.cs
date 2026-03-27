@@ -333,6 +333,11 @@ public class ChatService : IChatService
                     ["processingTimeMs"] = chatResponse.Metadata.ProcessingTimeMs
                 };
 
+                if (chatResponse.Metadata.AgentsInvoked?.Any() == true)
+                {
+                    assistantMessage.Metadata["agentsInvoked"] = chatResponse.Metadata.AgentsInvoked;
+                }
+
                 if (!string.IsNullOrEmpty(chatResponse.Intent.ToolName))
                 {
                     assistantMessage.Metadata["toolName"] = chatResponse.Intent.ToolName;
@@ -476,7 +481,8 @@ public class ChatService : IChatService
                             FollowUpPrompt = mcpResult.FollowUpPrompt,
                             Metadata = new ResponseMetadata
                             {
-                                ProcessingTimeMs = (long)mcpResult.ProcessingTimeMs
+                                ProcessingTimeMs = (long)mcpResult.ProcessingTimeMs,
+                                AgentsInvoked = mcpResult.AgentsInvoked ?? new List<string>()
                             }
                         },
                         Error = mcpResult.Errors.Any() ? string.Join("; ", mcpResult.Errors) : null
