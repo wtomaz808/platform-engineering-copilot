@@ -100,7 +100,25 @@ These are the locked technology choices. Switching any of these requires a const
 | Blazored.Toast | Toast notifications |
 | Blazored.Modal | Modal dialogs |
 | Blazored.LocalStorage | Client-side settings persistence |
+### 3.6 Local Development Tools
 
+These CLI tools **must** be installed on any development machine or VM. Missing tools cause workflow gaps (e.g., inability to close issues, authenticate, or build containers).
+
+| Tool | Version | Install | Purpose |
+|------|---------|---------|--------|
+| GitHub CLI (`gh`) | 2.x+ | `winget install GitHub.cli` | Issue management, PR workflows, repo operations, auth |
+| Git | 2.x+ | `winget install Git.Git` | Version control |
+| .NET SDK | 9.0 | `winget install Microsoft.DotNet.SDK.9` | Build, publish, test all server projects |
+| Docker Desktop | 4.x+ | `winget install Docker.DockerDesktop` | Container builds, compose orchestration |
+| Docker Compose | v2 (bundled) | Included with Docker Desktop | Multi-container orchestration |
+| Azure CLI (`az`) | 2.x+ | `winget install Microsoft.AzureCLI` | Azure resource management, auth |
+| winget | Built-in | Windows 10/11 native | Package management for all above tools |
+
+**GitHub CLI authentication** must be configured before any development session:
+```bash
+gh auth login --hostname github.com
+gh auth status   # verify: must show wtomaz808 account
+```
 ---
 
 ## 4. Cloud Target
@@ -281,6 +299,38 @@ The workspace `.vscode/settings.json` enforces these memory-saving defaults:
 - `files.watcherExclude` — excludes `bin/`, `obj/`, `node_modules/`, `.git/objects/`, `TestResults/`.
 
 These settings are committed to the repo and must not be removed without a constitution amendment.
+
+---
+
+## 14. Change Process
+
+**Every change must start with a GitHub Issue.** No code, infrastructure, tooling, or documentation change should be made without a tracking issue. This applies to:
+
+- Feature development
+- Bug fixes
+- Local toolset changes (installing/upgrading CLI tools, SDKs, etc.)
+- Infrastructure or deployment changes
+- Documentation updates
+- Constitution amendments
+
+### 14.1 Workflow
+
+1. **Create a GitHub Issue** on `wtomaz808/platform-engineering-copilot` describing the change.
+2. **Implement the change** on a feature branch, referencing the issue (e.g., `Closes #12`).
+3. **Commit and push** to the fork.
+4. **Close the issue** via `gh issue close <number>` or commit message keyword.
+
+### 14.2 Issue Templates
+
+Use the appropriate template:
+- **Bug Report** — for defects and regressions
+- **Feature Spec** — for new capabilities
+- **Enhancement** — for improvements to existing features
+- **`constitution-amendment`** label — for changes to this document
+
+### 14.3 Untracked Changes
+
+Any change discovered without a corresponding issue is considered a process violation and must be retroactively documented with an issue.
 
 ---
 
