@@ -59,7 +59,6 @@ WORKDIR /src/src/Platform.Engineering.Copilot.Chat
 RUN dotnet publish Platform.Engineering.Copilot.Chat.csproj \
     -c Release \
     -o /app/publish \
-    --no-restore \
     /p:PublishReadyToRun=false \
     /p:PublishTrimmed=false \
     /p:SkipSpaPublish=true

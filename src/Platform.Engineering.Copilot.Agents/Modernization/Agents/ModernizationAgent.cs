@@ -42,6 +42,8 @@ public class ModernizationAgent : BaseAgent
         ComplianceReadinessTool complianceReadinessTool,
         MigrationPlanGeneratorTool migrationPlanTool,
         BatchProcessMigrationTool batchProcessTool,
+        ScanGitHubRepoTool scanGitHubRepoTool,
+        ScanADORepoTool scanAdoRepoTool,
         IAgentStateManager? agentStateManager = null,
         ISharedMemory? sharedMemory = null)
         : base(chatClient, logger, agentStateManager, sharedMemory)
@@ -49,6 +51,8 @@ public class ModernizationAgent : BaseAgent
         _options = options?.Value ?? new ModernizationAgentOptions();
 
         // Register all modernization tools
+        RegisterTool(scanGitHubRepoTool);
+        RegisterTool(scanAdoRepoTool);
         RegisterTool(appAssessmentTool);
         RegisterTool(databaseMigrationTool);
         RegisterTool(containerizationTool);

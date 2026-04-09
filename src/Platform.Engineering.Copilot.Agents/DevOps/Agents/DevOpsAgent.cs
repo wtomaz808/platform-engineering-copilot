@@ -51,6 +51,17 @@ public class DevOpsAgent : BaseAgent
         // Azure DevOps Tools
         ListADOProjectsTool listAdoProjectsTool,
         ListADORepositoriesTool listAdoRepositoriesTool,
+        ListADOWorkItemsTool listAdoWorkItemsTool,
+        CreateADOWorkItemTool createAdoWorkItemTool,
+        UpdateADOWorkItemTool updateAdoWorkItemTool,
+        ListADOPipelinesTool listAdoPipelinesTool,
+        TriggerADOPipelineTool triggerAdoPipelineTool,
+        CreateADORepositoryTool createAdoRepositoryTool,
+        ListADOPullRequestsTool listAdoPullRequestsTool,
+        CreateADOPullRequestTool createAdoPullRequestTool,
+        ListADOPipelineRunsTool listAdoPipelineRunsTool,
+        ListADOTeamsTool listAdoTeamsTool,
+        AddADOTeamMemberTool addAdoTeamMemberTool,
         IAgentStateManager? agentStateManager = null,
         ISharedMemory? sharedMemory = null)
         : base(chatClient, logger, agentStateManager, sharedMemory)
@@ -88,6 +99,17 @@ public class DevOpsAgent : BaseAgent
         {
             RegisterTool(listAdoProjectsTool);
             RegisterTool(listAdoRepositoriesTool);
+            RegisterTool(listAdoWorkItemsTool);
+            RegisterTool(createAdoWorkItemTool);
+            RegisterTool(updateAdoWorkItemTool);
+            RegisterTool(listAdoPipelinesTool);
+            RegisterTool(triggerAdoPipelineTool);
+            RegisterTool(createAdoRepositoryTool);
+            RegisterTool(listAdoPullRequestsTool);
+            RegisterTool(createAdoPullRequestTool);
+            RegisterTool(listAdoPipelineRunsTool);
+            RegisterTool(listAdoTeamsTool);
+            RegisterTool(addAdoTeamMemberTool);
         }
 
         Logger.LogInformation("✅ DevOps Agent initialized with {ToolCount} tools (GitHub: {GitHubEnabled}, ADO: {ADOEnabled}, Temperature: {Temperature})",

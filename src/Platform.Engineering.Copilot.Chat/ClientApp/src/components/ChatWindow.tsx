@@ -26,7 +26,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [expandedToolResults, setExpandedToolResults] = useState<Set<string>>(new Set());
-  const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
+  const [selectedModel, setSelectedModel] = useState<string>('gpt-4.1');
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -37,8 +37,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const connectionStatus = state.isConnected ? 'Connected' : 'Disconnected';
 
   const models = [
-    { id: 'gpt-4o', label: 'GPT-4o' },
     { id: 'gpt-4.1', label: 'GPT-4.1' },
+    { id: 'gpt-4o', label: 'GPT-4o' },
   ];
 
   // Auto-scroll to bottom when new messages arrive

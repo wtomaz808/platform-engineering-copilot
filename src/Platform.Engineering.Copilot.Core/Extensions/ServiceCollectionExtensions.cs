@@ -98,6 +98,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IInfrastructureTemplateRepository, InfrastructureTemplateRepository>();
         services.AddScoped<IInfrastructureDeploymentRepository, InfrastructureDeploymentRepository>();
         services.AddScoped<IComplianceAssessmentRepository, ComplianceAssessmentRepository>();
+        services.AddScoped<Data.Repositories.IServiceTemplateRepository, Data.Repositories.ServiceTemplateRepository>();
+        services.AddScoped<Data.Repositories.IProvisionedEnvironmentRepository, Data.Repositories.ProvisionedEnvironmentRepository>();
+        services.AddScoped<Data.Repositories.IEnvironmentActivityRepository, Data.Repositories.EnvironmentActivityRepository>();
         
         // Register Template Storage Service (required by domain services)
         services.AddScoped<ITemplateStorageService, Data.Services.TemplateStorageService>();

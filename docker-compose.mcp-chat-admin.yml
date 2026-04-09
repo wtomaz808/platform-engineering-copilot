@@ -76,9 +76,9 @@ services:
       - Gateway__Azure__Enabled=${AZURE_ENABLED:-true}
       # Azure OpenAI Configuration
       - Gateway__AzureOpenAI__ApiKey=${AZURE_OPENAI_API_KEY:-}
-      - Gateway__AzureOpenAI__Endpoint=${AZURE_OPENAI_ENDPOINT:-https://mcp-ai.openai.azure.us/}
-      - Gateway__AzureOpenAI__DeploymentName=${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
-      - Gateway__AzureOpenAI__ChatDeploymentName=${AZURE_OPENAI_CHAT_DEPLOYMENT:-gpt-4o}
+      - Gateway__AzureOpenAI__Endpoint=${AZURE_OPENAI_ENDPOINT:-https://usgovarizona.api.cognitive.microsoft.us/}
+      - Gateway__AzureOpenAI__DeploymentName=${AZURE_OPENAI_DEPLOYMENT:-gpt-4.1}
+      - Gateway__AzureOpenAI__ChatDeploymentName=${AZURE_OPENAI_CHAT_DEPLOYMENT:-gpt-4.1}
       - Gateway__AzureOpenAI__EmbeddingDeploymentName=${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-text-embedding-ada-002}
       # GitHub Configuration
       - Gateway__GitHub__AccessToken=${GITHUB_TOKEN:-}
@@ -184,8 +184,8 @@ services:
       - Gateway__Azure__Enabled=${AZURE_ENABLED:-true}
       # Azure OpenAI (for NL template matching)
       - Gateway__AzureOpenAI__ApiKey=${AZURE_OPENAI_API_KEY:-}
-      - Gateway__AzureOpenAI__Endpoint=${AZURE_OPENAI_ENDPOINT:-https://mcp-ai.openai.azure.us/}
-      - Gateway__AzureOpenAI__DeploymentName=${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      - Gateway__AzureOpenAI__Endpoint=${AZURE_OPENAI_ENDPOINT:-https://usgovarizona.api.cognitive.microsoft.us/}
+      - Gateway__AzureOpenAI__DeploymentName=${AZURE_OPENAI_DEPLOYMENT:-gpt-4.1}
       # Git Sync Configuration
       - GitSync__GitHubToken=${GITHUB_TOKEN:-}
       - GitSync__AzureDevOpsToken=${AZURE_DEVOPS_TOKEN:-}
@@ -223,7 +223,7 @@ services:
     ports:
       - "5003:80"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
       retries: 3

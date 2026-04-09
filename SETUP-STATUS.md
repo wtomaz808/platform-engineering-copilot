@@ -1,7 +1,37 @@
 # Platform Engineering Copilot - Setup Status
-**Last Updated:** March 14, 2026  
+**Last Updated:** April 9, 2026  
 **Status:** Local stack fully operational — all 5 containers healthy  
-**Branch:** BT_deploy (all changes committed to this branch, not main)
+**Branch:** BT_SK_Deploy (all changes committed to this branch, not main)
+
+---
+
+## April 9, 2026 — GH ↔ ADO Parity + Modernization Agent Update
+
+### DevOps Agent — Full GH ↔ ADO Tool Parity (25 tools total)
+
+**5 new ADO tools added (matching GitHub counterparts):**
+
+| ADO Tool | GitHub Counterpart |
+|---|---|
+| `ListADOPullRequestsTool` | `ListGitHubPullRequestsTool` |
+| `CreateADOPullRequestTool` | `CreateGitHubPullRequestTool` |
+| `ListADOPipelineRunsTool` | `ListGitHubActionRunsTool` |
+| `ListADOTeamsTool` | `ListGitHubTeamsTool` |
+| `AddADOTeamMemberTool` | `AddGitHubTeamMemberTool` |
+
+### Modernization & Migration Agent — ADO Repo Scanning (10 tools)
+
+**1 new tool added:**
+- `ScanADORepoTool` — scans ADO on-prem Git repos via Items API (`recursionLevel=Full`). Fetches `.csproj`, `web.config`, `packages.config`, `Dockerfile`, `.sln` without cloning. Runs analysis through `CodeAnalysisService` and returns same `migrationSummary` / `nextSteps` shape as `ScanGitHubRepoTool`.
+
+Both `ScanGitHubRepoTool` and `ScanADORepoTool` are now registered and available in the Modernization Agent.
+
+### Container Status
+- ✅ `pec-mcp` rebuilt and restarted — all 11 agents + new tools active
+- ✅ Build: `dotnet build` → `Build succeeded` (warnings only)
+- ✅ Health: `HTTP 200` on `/health` endpoint
+
+---
 
 ---
 

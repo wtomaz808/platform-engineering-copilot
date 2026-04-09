@@ -2,7 +2,9 @@
 
 > **AI-Powered Infrastructure & Compliance Platform for Azure Government**
 
-Built on .NET 9.0, and Model Context Protocol (MCP). Uses the **Microsoft Agent Framework** architecture pattern with **10 specialized AI agents** for infrastructure, compliance, cost management, DevOps (GitHub & Azure DevOps), security, and more.
+> **Last Updated:** April 9, 2026 — v0.8.1 | Branch: `BT_SK_Deploy`
+
+Built on .NET 9.0, and Model Context Protocol (MCP). Uses the **Microsoft Agent Framework** architecture pattern with **11 specialized AI agents** for infrastructure, compliance, cost management, DevOps (GitHub & Azure DevOps), modernization & migration, security, and more.
 
 ---
 
@@ -43,38 +45,44 @@ open http://localhost:5000  # Admin Client
 The platform uses **Microsoft Agent Framework** with `PlatformAgentGroupChat` for multi-agent orchestration.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    MCP SERVER (:5100)                            │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │              PlatformAgentGroupChat                         ││
-│  │  ├─ PlatformSelectionStrategy (intent-based routing)       ││
-│  │  ├─ PlatformTerminationStrategy                            ││
-│  │  └─ 10 Specialized Agents                                   ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                  │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐               │
-│  │ Compliance  │ │Infrastructure│ │    Cost     │               │
-│  │   Agent     │ │    Agent    │ │   Agent     │               │
-│  └─────────────┘ └─────────────┘ └─────────────┘               │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐               │
-│  │  Discovery  │ │ Environment │ │Configuration│               │
-│  │   Agent     │ │   Agent     │ │   Agent     │               │
-│  └─────────────┘ └─────────────┘ └─────────────┘               │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐               │
-│  │ Knowledge   │ │  Security   │ │   DevOps    │               │
-│  │ Base Agent  │ │   Agent     │ │   Agent     │               │
-│  └─────────────┘ └─────────────┘ └─────────────┘               │
-│  ┌─────────────┐                                                │
-│  │Orchestrator │                                                │
-│  │   Agent     │                                                │
-│  └─────────────┘                                                │
-└─────────────────────────────────────────────────────────────────┘
-        │                    │                    │
-        ▼                    ▼                    ▼
-┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-│ Chat UI     │      │ Admin API   │      │Admin Client │
-│   :5001     │      │   :5050     │      │   :5000     │
-└─────────────┘      └─────────────┘      └─────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                        MCP SERVER (:5100)                            │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                  PlatformAgentGroupChat                        │  │
+│  │    ├─ PlatformSelectionStrategy (intent-based routing)        │  │
+│  │    ├─ PlatformTerminationStrategy                             │  │
+│  │    └─ 11 Specialized Agents                                   │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐                 │
+│  │ Compliance  │  │Infrastructure│  │    Cost     │                 │
+│  │   Agent     │  │    Agent     │  │   Agent     │                 │
+│  └─────────────┘  └──────────────┘  └─────────────┘                 │
+│                                                                      │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐                 │
+│  │  Discovery  │  │ Environment  │  │Configuration│                 │
+│  │   Agent     │  │    Agent     │  │   Agent     │                 │
+│  └─────────────┘  └──────────────┘  └─────────────┘                 │
+│                                                                      │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐                 │
+│  │ Knowledge   │  │  Security    │  │   DevOps    │                 │
+│  │ Base Agent  │  │   Agent      │  │   Agent     │                 │
+│  │             │  │              │  │ GH + ADO    │  ← 25 tools     │
+│  └─────────────┘  └──────────────┘  └─────────────┘                 │
+│                                                                      │
+│  ┌──────────────────────┐  ┌─────────────┐                          │
+│  │ Modernization &      │  │Orchestrator │                          │
+│  │ Migration Agent      │  │   Agent     │                          │
+│  │ GitHub + ADO Scanning│  │             │                          │
+│  │ .NET → Azure Gov     │  │             │                          │
+│  └──────────────────────┘  └─────────────┘                          │
+└──────────────────────────────────────────────────────────────────────┘
+         │                     │                     │
+         ▼                     ▼                     ▼
+┌─────────────┐       ┌─────────────┐       ┌─────────────┐
+│  Chat UI    │       │  Admin API  │       │Admin Client │
+│   :5001     │       │   :5050     │       │   :5000     │
+└─────────────┘       └─────────────┘       └─────────────┘
 ```
 
 ### Service Ports
@@ -97,7 +105,9 @@ The platform uses **Microsoft Agent Framework** with `PlatformAgentGroupChat` fo
 | **Environment** | Lifecycle | Environment provisioning, template management, Git sync |
 | **Configuration** | Settings | Azure configuration, Key Vault, App Config |
 | **KnowledgeBase** | Documentation | ATO docs, SSP generation, policy lookup |
-| **Security** | Protection | Vulnerability scanning, secure score, policy || **DevOps** | CI/CD & SCM | GitHub repos/issues/PRs/Actions, Azure DevOps boards/pipelines, ADO Server (on-prem for Azure Gov) |
+| **Security** | Protection | Vulnerability scanning, secure score, policy |
+| **DevOps** | CI/CD & SCM | GitHub repos/issues/PRs/Actions/teams + Azure DevOps boards/pipelines/PRs/teams — full GH ↔ ADO parity (25 tools) |
+| **Modernization & Migration** | .NET → Azure Gov | Scan GitHub & ADO repos, app assessment, database migration, containerization, FedRAMP compliance, phased migration planning (10 tools) |
 | **Orchestrator** | Routing | Multi-agent coordination, intent-based agent selection |
 ---
 
@@ -115,6 +125,11 @@ The platform uses **Microsoft Agent Framework** with `PlatformAgentGroupChat` fo
 "List my GitHub repositories and open PRs"
 "Create a GitHub issue for tracking the migration project"
 "Show recent pipeline runs for the platform-infra repo"
+"Scan my ADO repo DefaultCollection/MyApp for .NET migration readiness"
+"Scan my GitHub repo org/MyLegacyApp and generate a migration plan to Azure Gov"
+"Compare migration complexity between our GitHub and ADO repositories"
+"List all pull requests in ADO project DevPortal"
+"Create a pull request in ADO from feature/my-branch to main"
 ```
 
 ---
@@ -169,7 +184,10 @@ src/
 │   ├── Environments/                        # Environment Agent
 │   ├── Configuration/                       # Configuration Agent
 │   ├── KnowledgeBase/                       # Knowledge Base Agent
-│   ├── DevOps/                              # DevOps Agent (GitHub, ADO, ADO Server)
+│   ├── DevOps/                              # DevOps Agent (GitHub 12 + ADO 13 = 25 tools)
+│   ├── Modernization/                       # Modernization & Migration Agent (10 tools)
+│   │   ├── Tools/                           # ScanGitHubRepoTool, ScanADORepoTool, + 8 more
+│   │   └── Services/                        # CodeAnalysisService (.csproj, web.config parsing)
 │   └── Extensions/                          # DI registration
 ├── Platform.Engineering.Copilot.Core/       # Shared core library
 │   ├── Data/                                # EF Core context, migrations

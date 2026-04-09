@@ -143,7 +143,7 @@ public static class ServiceCollectionExtensions
             var apiKey = configuration.GetValue<string>("Gateway:AzureOpenAI:ApiKey");
             var deploymentName = configuration.GetValue<string>("Gateway:AzureOpenAI:ChatDeploymentName") 
                 ?? configuration.GetValue<string>("Gateway:AzureOpenAI:DeploymentName") 
-                ?? "gpt-4o";
+                ?? "gpt-4.1";
             var useManagedIdentity = configuration.GetValue<bool>("Gateway:AzureOpenAI:UseManagedIdentity");
 
             if (string.IsNullOrEmpty(endpoint))
@@ -644,14 +644,20 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AddGitHubTeamMemberTool>();
         services.AddScoped<ListGitHubTeamsTool>();
 
-        // TODO: Add Azure DevOps tools when implemented
-        // services.AddScoped<CreateADORepositoryTool>();
-        // services.AddScoped<CreateWorkItemTool>();
-        // etc.
-
         // Azure DevOps tools
         services.AddScoped<ListADOProjectsTool>();
         services.AddScoped<ListADORepositoriesTool>();
+        services.AddScoped<ListADOWorkItemsTool>();
+        services.AddScoped<CreateADOWorkItemTool>();
+        services.AddScoped<UpdateADOWorkItemTool>();
+        services.AddScoped<ListADOPipelinesTool>();
+        services.AddScoped<TriggerADOPipelineTool>();
+        services.AddScoped<CreateADORepositoryTool>();
+        services.AddScoped<ListADOPullRequestsTool>();
+        services.AddScoped<CreateADOPullRequestTool>();
+        services.AddScoped<ListADOPipelineRunsTool>();
+        services.AddScoped<ListADOTeamsTool>();
+        services.AddScoped<AddADOTeamMemberTool>();
 
         // Only register agent if enabled
         services.AddScoped<DevOpsAgent>();
@@ -690,6 +696,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ComplianceReadinessTool>();
         services.AddScoped<MigrationPlanGeneratorTool>();
         services.AddScoped<BatchProcessMigrationTool>();
+        services.AddScoped<ScanGitHubRepoTool>();
+        services.AddScoped<ScanADORepoTool>();
 
         // Only register agent if enabled
         services.AddScoped<ModernizationAgent>();

@@ -89,7 +89,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   openai: {
     apiKey: '',
     endpoint: '',
-    chatDeployment: 'gpt-4o',
+    chatDeployment: 'gpt-4.1',
     embeddingDeployment: 'text-embedding-ada-002',
   },
   securityBanner: {

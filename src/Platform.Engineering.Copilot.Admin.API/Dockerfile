@@ -29,7 +29,6 @@ WORKDIR "/src/src/Platform.Engineering.Copilot.Admin.API"
 RUN dotnet build "Platform.Engineering.Copilot.Admin.API.csproj" \
     -c Release \
     -o /app/build \
-    --no-restore \
     /p:PublishReadyToRun=false \
     /p:PublishSingleFile=false
 
@@ -38,7 +37,6 @@ FROM build AS publish
 RUN dotnet publish "Platform.Engineering.Copilot.Admin.API.csproj" \
     -c Release \
     -o /app/publish \
-    --no-restore \
     /p:UseAppHost=false \
     /p:PublishReadyToRun=false \
     /p:PublishTrimmed=false
