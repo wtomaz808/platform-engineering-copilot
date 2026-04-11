@@ -76,6 +76,9 @@ param logAnalyticsWorkspaceId string = ''
 @secure()
 param logAnalyticsWorkspaceKey string = ''
 
+@description('Health check path for liveness/readiness probes (empty string disables probes)')
+param healthCheckPath string = '/health'
+
 @description('Resource tags')
 param tags object = {
   Environment: 'Development'
@@ -167,9 +170,9 @@ resource containerGroup 'Microsoft.ContainerInstance/containerGroups@2023-05-01'
           volumeMounts: volumes
           
           // Liveness probe
-          livenessProbe: {
+          livenessProbe: !empty(healthCheckPath) ? {
             httpGet: {
-              path: '/health'
+              path: healthCheckPath
               port: port
               scheme: 'HTTP'
             }
@@ -178,12 +181,12 @@ resource containerGroup 'Microsoft.ContainerInstance/containerGroups@2023-05-01'
             failureThreshold: 3
             successThreshold: 1
             timeoutSeconds: 5
-          }
+          } : null
           
           // Readiness probe
-          readinessProbe: {
+          readinessProbe: !empty(healthCheckPath) ? {
             httpGet: {
-              path: '/health'
+              path: healthCheckPath
               port: port
               scheme: 'HTTP'
             }
@@ -192,7 +195,7 @@ resource containerGroup 'Microsoft.ContainerInstance/containerGroups@2023-05-01'
             failureThreshold: 3
             successThreshold: 1
             timeoutSeconds: 3
-          }
+          } : null
         }
       }
     ]

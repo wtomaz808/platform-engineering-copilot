@@ -10,9 +10,11 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Configure Admin API base address
-var apiBaseUrl = builder.Configuration["AdminApi:BaseUrl"] 
-    ?? "https://localhost:5051";
+// Configure Admin API base address.
+// When AdminApi:BaseUrl is not set, default to the app's own host so the nginx
+// /api/ reverse-proxy routes requests to the real Admin API (ACI / Docker Compose).
+var apiBaseUrl = builder.Configuration["AdminApi:BaseUrl"]
+    ?? builder.HostEnvironment.BaseAddress;
 
 builder.Services.AddScoped(sp => new HttpClient 
 { 

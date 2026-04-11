@@ -85,56 +85,47 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' =
   properties: {
     adminUserEnabled: adminUserEnabled
     publicNetworkAccess: publicNetworkAccess
-    networkRuleBypassOptions: 'AzureServices'
 
-    // Zone redundancy for high availability (Premium SKU)
-    zoneRedundancy: sku == 'Premium' ? (zoneRedundancy ? 'Enabled' : 'Disabled') : 'Disabled'
-
-    // Data endpoint enabled for peering scenarios
-    dataEndpointEnabled: true
-
-    // Network rule set
-    networkRuleSet: {
+    // VNet/network rules — Premium SKU only. Null omits these from the request for Standard/Basic.
+    networkRuleBypassOptions: sku == 'Premium' ? 'AzureServices' : null
+    zoneRedundancy: sku == 'Premium' ? (zoneRedundancy ? 'Enabled' : 'Disabled') : null
+    networkRuleSet: sku == 'Premium' ? {
       defaultAction: 'Deny'
-    }
+    } : null
 
-    // Policies
-    policies: {
-      // Quarantine policy - scan images before use
+    // Policies: quarantinePolicy, trustPolicy, exportPolicy are Premium-only.
+    // For Standard/Basic, only retentionPolicy is supported.
+    policies: sku == 'Premium' ? {
       quarantinePolicy: {
         status: enableQuarantine ? 'enabled' : 'disabled'
       }
-
-      // Trust policy - require signed images
       trustPolicy: {
         type: 'Notary'
         status: enableContentTrust ? 'enabled' : 'disabled'
       }
-
-      // Retention policy - cleanup untagged manifests
       retentionPolicy: {
         days: retentionDays
         status: enableRetentionPolicy ? 'enabled' : 'disabled'
       }
-
-      // Export policy - prevent export to non-compliant regions
       exportPolicy: {
         status: 'disabled'
       }
+    } : {
+      // Standard/Basic: only retention policy is supported
+      retentionPolicy: {
+        days: retentionDays
+        status: enableRetentionPolicy ? 'enabled' : 'disabled'
+      }
     }
 
-    // Encryption configuration
-    encryption: enableCustomerManagedKey
-      ? {
-          status: 'enabled'
-          keyVaultProperties: {
-            identity: ''
-            keyIdentifier: '${keyVaultId}/keys/${encryptionKeyName}'
-          }
-        }
-      : {
-          status: 'disabled'
-        }
+    // Encryption with CMK requires Premium + Key Vault integration
+    encryption: (sku == 'Premium' && enableCustomerManagedKey) ? {
+      status: 'enabled'
+      keyVaultProperties: {
+        identity: ''
+        keyIdentifier: '${keyVaultId}/keys/${encryptionKeyName}'
+      }
+    } : null
   }
 }
 
@@ -155,42 +146,9 @@ resource replication 'Microsoft.ContainerRegistry/registries/replications@2023-0
 ]
 
 // =============================================================================
-// Diagnostic Settings for Audit Logging
+// Diagnostic Settings for Audit Logging (skipped — no workspace ID param on this module)
+// To enable: add logAnalyticsWorkspaceId param and uncomment
 // =============================================================================
-resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  name: '${acrName}-diagnostics'
-  scope: containerRegistry
-  properties: {
-    logs: [
-      {
-        category: 'ContainerRegistryRepositoryEvents'
-        enabled: true
-        retentionPolicy: {
-          enabled: true
-          days: 90
-        }
-      }
-      {
-        category: 'ContainerRegistryLoginEvents'
-        enabled: true
-        retentionPolicy: {
-          enabled: true
-          days: 90
-        }
-      }
-    ]
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-        retentionPolicy: {
-          enabled: true
-          days: 90
-        }
-      }
-    ]
-  }
-}
 
 // =============================================================================
 // Outputs

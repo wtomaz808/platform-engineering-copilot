@@ -59,6 +59,42 @@ param deployAdminClient bool = true
 @description('Container image tag')
 param imageTag string = 'latest'
 
+@description('Override ACR name (leave empty to auto-generate from projectName+environment+suffix)')
+param acrNameOverride string = ''
+
+@description('Supply the login server of an existing ACR (e.g. pecopdevacr.azurecr.us) to skip ACR creation entirely')
+param acrLoginServerOverride string = ''
+
+@description('Azure OpenAI API Key')
+@secure()
+param openAiApiKey string = ''
+
+@description('Azure OpenAI Endpoint')
+param openAiEndpoint string = ''
+
+@description('Azure OpenAI Chat Deployment Name')
+param openAiDeploymentName string = 'gpt-4.1'
+
+@description('Service Principal Client ID')
+param spClientId string = ''
+
+@description('Service Principal Client Secret')
+@secure()
+param spClientSecret string = ''
+
+@description('Service Principal Tenant ID')
+param spTenantId string = ''
+
+@description('Service Principal Subscription ID')
+param spSubscriptionId string = ''
+
+@description('ACR admin username (leave empty to use managed identity)')
+param acrAdminUsername string = ''
+
+@description('ACR admin password')
+@secure()
+param acrAdminPassword string = ''
+
 @description('CPU cores per container')
 @minValue(1)
 @maxValue(4)
@@ -86,7 +122,7 @@ var names = {
   storage: take(replace('${prefix}st${suffix}', '-', ''), 24)
   appInsights: '${prefix}-ai'
   logAnalytics: '${prefix}-law'
-  acr: take(replace('${prefix}acr${suffix}', '-', ''), 50)
+  acr: acrNameOverride != '' ? acrNameOverride : take(replace('${prefix}acr${suffix}', '-', ''), 50)
   appServicePlan: '${prefix}-asp'
 }
 
@@ -99,7 +135,8 @@ var containerNames = {
 }
 
 // Computed values from conditional modules (set after module declarations)
-var acrServer = (deploymentTarget == 'aci' || deploymentTarget == 'aks') ? acr.outputs.acrLoginServer : ''
+// If acrLoginServerOverride is supplied, use it directly instead of deploying ACR module
+var acrServer = acrLoginServerOverride != '' ? acrLoginServerOverride : ((deploymentTarget == 'aci' || deploymentTarget == 'aks') ? acr.outputs.acrLoginServer : '')
 var sqlConnString = replace(database.outputs.connectionStringTemplate, '<PASSWORD>', sqlAdminPassword)
 var aiConnString = monitoring.outputs.connectionString
 
@@ -179,6 +216,7 @@ module keyVault 'modules/keyvault.bicep' = {
     enableSoftDelete: isProduction
     enablePurgeProtection: isProduction
     skuName: isProduction ? 'premium' : 'standard'
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
   }
 }
 
@@ -220,12 +258,13 @@ module database 'modules/sql.bicep' = {
 // CONTAINER REGISTRY (for ACI/AKS deployments)
 // =============================================================================
 
-module acr 'modules/acr.bicep' = if (deploymentTarget == 'aci' || deploymentTarget == 'aks') {
+module acr 'modules/acr.bicep' = if ((deploymentTarget == 'aci' || deploymentTarget == 'aks') && acrLoginServerOverride == '') {
   name: 'acr'
   params: {
     acrName: names.acr
     location: location
     sku: isProduction ? 'Premium' : 'Standard'
+    adminUserEnabled: !isProduction       // enable admin for dev (needed for ACI pull with password)
     enableGeoReplication: false
     replicationLocations: []
     enableContentTrust: isProduction
@@ -254,15 +293,32 @@ module aciMcp 'modules/aci.bicep' = if (deploymentTarget == 'aci' && deployMcp) 
     memoryInGB: memoryGB
     port: services.mcp.port
     acrLoginServer: acrServer
-    useManagedIdentity: true
+    useManagedIdentity: acrAdminUsername == ''
+    acrUsername: acrAdminUsername
+    acrPassword: acrAdminPassword
     enableVNetIntegration: isProduction
     subnetId: isProduction ? network.outputs.privateEndpointSubnetId : ''
     dnsNameLabel: !isProduction ? '${containerNames.mcp}-${suffix}' : ''
-    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsCustomerId
+    logAnalyticsWorkspaceKey: monitoring.outputs.logAnalyticsWorkspaceKey
+    healthCheckPath: '/health'
     environmentVariables: [
       { name: 'ASPNETCORE_ENVIRONMENT', value: isProduction ? 'Production' : 'Development' }
+      { name: 'DatabaseProvider', value: 'SqlServer' }
       { name: 'ConnectionStrings__DefaultConnection', value: sqlConnString }
       { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: aiConnString }
+      { name: 'Gateway__AzureOpenAI__Endpoint', value: openAiEndpoint }
+      { name: 'Gateway__AzureOpenAI__DeploymentName', value: openAiDeploymentName }
+      { name: 'Gateway__AzureOpenAI__ChatDeploymentName', value: openAiDeploymentName }
+      { name: 'Gateway__Azure__TenantId', value: spTenantId }
+      { name: 'Gateway__Azure__ClientId', value: spClientId }
+      { name: 'Gateway__Azure__SubscriptionId', value: spSubscriptionId }
+      { name: 'Gateway__Azure__CloudEnvironment', value: 'AzureGovernment' }
+      { name: 'Gateway__Azure__Enabled', value: 'true' }
+    ]
+    secureEnvironmentVariables: [
+      { name: 'Gateway__AzureOpenAI__ApiKey', value: openAiApiKey }
+      { name: 'Gateway__Azure__ClientSecret', value: spClientSecret }
     ]
     tags: { Service: 'MCP', Environment: environment }
   }
@@ -280,15 +336,30 @@ module aciChat 'modules/aci.bicep' = if (deploymentTarget == 'aci' && deployChat
     memoryInGB: memoryGB
     port: services.chat.port
     acrLoginServer: acrServer
-    useManagedIdentity: true
+    useManagedIdentity: acrAdminUsername == ''
+    acrUsername: acrAdminUsername
+    acrPassword: acrAdminPassword
     enableVNetIntegration: isProduction
     subnetId: isProduction ? network.outputs.privateEndpointSubnetId : ''
     dnsNameLabel: !isProduction ? '${containerNames.chat}-${suffix}' : ''
-    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsCustomerId
+    logAnalyticsWorkspaceKey: monitoring.outputs.logAnalyticsWorkspaceKey
+    healthCheckPath: ''
     environmentVariables: [
       { name: 'ASPNETCORE_ENVIRONMENT', value: isProduction ? 'Production' : 'Development' }
       { name: 'ConnectionStrings__DefaultConnection', value: sqlConnString }
       { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: aiConnString }
+      { name: 'Gateway__AzureOpenAI__Endpoint', value: openAiEndpoint }
+      { name: 'Gateway__AzureOpenAI__DeploymentName', value: openAiDeploymentName }
+      { name: 'Gateway__Azure__TenantId', value: spTenantId }
+      { name: 'Gateway__Azure__ClientId', value: spClientId }
+      { name: 'Gateway__Azure__SubscriptionId', value: spSubscriptionId }
+      { name: 'Gateway__Azure__CloudEnvironment', value: 'AzureGovernment' }
+      { name: 'McpServer__BaseUrl', value: 'http://${containerNames.mcp}-${suffix}.usgovarizona.azurecontainer.console.azure.us:5100' }
+    ]
+    secureEnvironmentVariables: [
+      { name: 'Gateway__AzureOpenAI__ApiKey', value: openAiApiKey }
+      { name: 'Gateway__Azure__ClientSecret', value: spClientSecret }
     ]
     tags: { Service: 'Chat', Environment: environment }
   }
@@ -306,14 +377,29 @@ module aciAdminApi 'modules/aci.bicep' = if (deploymentTarget == 'aci' && deploy
     memoryInGB: 2
     port: services.adminApi.port
     acrLoginServer: acrServer
-    useManagedIdentity: true
+    useManagedIdentity: acrAdminUsername == ''
+    acrUsername: acrAdminUsername
+    acrPassword: acrAdminPassword
     enableVNetIntegration: isProduction
     subnetId: isProduction ? network.outputs.privateEndpointSubnetId : ''
     dnsNameLabel: !isProduction ? '${containerNames.adminApi}-${suffix}' : ''
-    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsCustomerId
+    logAnalyticsWorkspaceKey: monitoring.outputs.logAnalyticsWorkspaceKey
+    healthCheckPath: ''
     environmentVariables: [
       { name: 'ASPNETCORE_ENVIRONMENT', value: isProduction ? 'Production' : 'Development' }
       { name: 'ConnectionStrings__DefaultConnection', value: sqlConnString }
+      { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: aiConnString }
+      { name: 'Gateway__AzureOpenAI__Endpoint', value: openAiEndpoint }
+      { name: 'Gateway__AzureOpenAI__DeploymentName', value: openAiDeploymentName }
+      { name: 'Gateway__Azure__TenantId', value: spTenantId }
+      { name: 'Gateway__Azure__ClientId', value: spClientId }
+      { name: 'Gateway__Azure__SubscriptionId', value: spSubscriptionId }
+      { name: 'Gateway__Azure__CloudEnvironment', value: 'AzureGovernment' }
+    ]
+    secureEnvironmentVariables: [
+      { name: 'Gateway__AzureOpenAI__ApiKey', value: openAiApiKey }
+      { name: 'Gateway__Azure__ClientSecret', value: spClientSecret }
     ]
     tags: { Service: 'AdminAPI', Environment: environment }
   }
@@ -331,11 +417,15 @@ module aciAdminClient 'modules/aci.bicep' = if (deploymentTarget == 'aci' && dep
     memoryInGB: 1
     port: services.adminClient.port
     acrLoginServer: acrServer
-    useManagedIdentity: true
+    useManagedIdentity: acrAdminUsername == ''
+    acrUsername: acrAdminUsername
+    acrPassword: acrAdminPassword
     enableVNetIntegration: isProduction
     subnetId: isProduction ? network.outputs.privateEndpointSubnetId : ''
     dnsNameLabel: !isProduction ? '${containerNames.adminClient}-${suffix}' : ''
-    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsCustomerId
+    logAnalyticsWorkspaceKey: monitoring.outputs.logAnalyticsWorkspaceKey
+    healthCheckPath: ''
     environmentVariables: []
     tags: { Service: 'AdminClient', Environment: environment }
   }
@@ -381,6 +471,24 @@ resource appInsightsSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   properties: {
     value: aiConnString
     contentType: 'Application Insights Connection String'
+  }
+  dependsOn: [keyVault]
+}
+
+resource openAiKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (openAiApiKey != '') {
+  name: '${names.keyVault}/OpenAiApiKey'
+  properties: {
+    value: openAiApiKey
+    contentType: 'Azure OpenAI API Key'
+  }
+  dependsOn: [keyVault]
+}
+
+resource spClientSecretKv 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (spClientSecret != '') {
+  name: '${names.keyVault}/SpClientSecret'
+  properties: {
+    value: spClientSecret
+    contentType: 'Service Principal Client Secret'
   }
   dependsOn: [keyVault]
 }

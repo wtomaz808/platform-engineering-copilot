@@ -180,8 +180,8 @@ app.UseSerilogRequestLogging(options =>
 
 app.UseCors();
 
-// Only use HTTPS redirection in production
-if (!app.Environment.IsDevelopment())
+// Only use HTTPS redirection when explicitly enabled (not in ACI plain-HTTP deployments)
+if (!app.Environment.IsDevelopment() && Environment.GetEnvironmentVariable("FORCE_HTTPS") == "true")
 {
     app.UseHttpsRedirection();
 }
@@ -205,7 +205,8 @@ app.MapWhen(context => !context.Request.Path.StartsWithSegments("/api") &&
             spa.Options.SourcePath = "wwwroot";
             spa.Options.DefaultPage = "/index.html";
 
-            if (app.Environment.IsDevelopment())
+            // Only proxy to React dev server when explicitly enabled (local dev only, not ACI)
+            if (app.Environment.IsDevelopment() && Environment.GetEnvironmentVariable("USE_SPA_PROXY") == "true")
             {
                 spa.UseProxyToSpaDevelopmentServer("http://localhost:3000");
             }
@@ -215,13 +216,20 @@ app.MapWhen(context => !context.Request.Path.StartsWithSegments("/api") &&
 // Initialize databases
 using (var scope = app.Services.CreateScope())
 {
-    var chatContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
-    await chatContext.Database.EnsureCreatedAsync();
-    Log.Information("✅ Chat database initialized successfully");
-    
-    var platformContext = scope.ServiceProvider.GetRequiredService<PlatformEngineeringCopilotContext>();
-    await platformContext.Database.EnsureCreatedAsync();
-    Log.Information("✅ Platform database initialized successfully");
+    try
+    {
+        var chatContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
+        await chatContext.Database.EnsureCreatedAsync();
+        Log.Information("✅ Chat database initialized successfully");
+
+        var platformContext = scope.ServiceProvider.GetRequiredService<PlatformEngineeringCopilotContext>();
+        await platformContext.Database.EnsureCreatedAsync();
+        Log.Information("✅ Platform database initialized successfully");
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "⚠️ Database initialization failed — starting without DB (will retry on first request)");
+    }
 }
 
 Log.Information("🚀 Enhanced Chat Application starting on {Environment}", app.Environment.EnvironmentName);
