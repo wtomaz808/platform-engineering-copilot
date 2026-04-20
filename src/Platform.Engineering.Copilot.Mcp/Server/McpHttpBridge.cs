@@ -26,6 +26,16 @@ public class McpHttpBridge
 {
     private readonly ILogger<McpHttpBridge> _logger;
 
+    private static readonly string _integrationSettingsPath = Path.Combine(
+        AppContext.BaseDirectory, "settings", "mcp-integration-settings.json");
+    private static readonly object _settingsLock = new();
+    private static readonly JsonSerializerOptions _persistJsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+
     public McpHttpBridge(ILogger<McpHttpBridge> logger)
     {
         _logger = logger;
@@ -613,8 +623,8 @@ public class McpHttpBridge
         });
         _logger.LogInformation("   GET    /mcp/templates/latest - Get latest generated template");
 
-        // Runtime GitHub settings override (in-memory only; resets on MCP restart)
-        // Called by the Chat service when user saves settings in the Admin Panel
+        // Runtime GitHub settings override — persisted to disk so they survive MCP restarts.
+        // Called by the Admin API when user saves settings in the Admin Panel.
         app.MapPost("/settings/github", async (HttpContext context) =>
         {
             var logger = context.RequestServices.GetRequiredService<ILogger<McpHttpBridge>>();
@@ -643,6 +653,7 @@ public class McpHttpBridge
                     logger.LogInformation("✅ GitHub org/owner updated to: {Org}", request.Organization);
                 }
 
+                PersistGitHubSettings(request, logger);
                 return Results.Ok(new { success = true });
             }
             catch (Exception ex)
@@ -652,7 +663,7 @@ public class McpHttpBridge
             }
         });
 
-        // Runtime Azure DevOps settings override (in-memory only; resets on MCP restart)
+        // Runtime Azure DevOps settings override — persisted to disk so they survive MCP restarts.
         app.MapPost("/settings/ado", async (HttpContext context) =>
         {
             var logger = context.RequestServices.GetRequiredService<ILogger<McpHttpBridge>>();
@@ -700,6 +711,7 @@ public class McpHttpBridge
                 logger.LogInformation("✅ ADO settings updated at runtime. Server: {Url}, Collection: {Col}",
                     ado.ServerUrl, ado.DefaultCollection ?? "(none)");
 
+                PersistAdoSettings(request, logger);
                 return Results.Ok(new { success = true });
             }
             catch (Exception ex)
@@ -931,6 +943,128 @@ public class McpHttpBridge
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return masked;
     }
+
+    #region Integration Settings Persistence
+
+    /// <summary>
+    /// Restores GitHub/ADO integration settings that were saved by a previous call to
+    /// /settings/github or /settings/ado.  Called once at MCP startup so that settings
+    /// saved through the Admin UI survive container restarts.
+    /// </summary>
+    public void LoadPersistedIntegrationSettings(IServiceProvider services)
+    {
+        PersistedSettings saved;
+        lock (_settingsLock)
+        {
+            if (!File.Exists(_integrationSettingsPath))
+            {
+                _logger.LogInformation("No persisted integration settings found at {Path} — skipping restore",
+                    _integrationSettingsPath);
+                return;
+            }
+            saved = LoadPersistedSettingsLocked();
+        }
+
+        var gatewayOptions = services.GetRequiredService<IOptions<GatewayOptions>>();
+        var devOpsOptions = services.GetRequiredService<IOptions<DevOpsAgentOptions>>();
+
+        if (!string.IsNullOrWhiteSpace(saved.GitHubToken))
+        {
+            gatewayOptions.Value.GitHub.AccessToken = saved.GitHubToken;
+            gatewayOptions.Value.GitHub.Enabled = true;
+            if (!string.IsNullOrWhiteSpace(saved.GitHubOrganization))
+            {
+                gatewayOptions.Value.GitHub.DefaultOwner = saved.GitHubOrganization;
+                devOpsOptions.Value.GitHub.DefaultOrg = saved.GitHubOrganization;
+            }
+            _logger.LogInformation("✅ GitHub integration settings restored from persisted file");
+        }
+
+        if (!string.IsNullOrWhiteSpace(saved.AdoServerUrl) && !string.IsNullOrWhiteSpace(saved.AdoAccessToken))
+        {
+            var ado = gatewayOptions.Value.AzureDevOps;
+            ado.ServerUrl = saved.AdoServerUrl.TrimEnd('/');
+            ado.AccessToken = saved.AdoAccessToken;
+            ado.Enabled = true;
+            ado.DefaultCollection = saved.AdoServerType == "server" && !string.IsNullOrWhiteSpace(saved.AdoCollection)
+                ? saved.AdoCollection
+                : null;
+            devOpsOptions.Value.AzureDevOps.Enabled = true;
+            devOpsOptions.Value.AzureDevOps.ServerUrl = ado.ServerUrl;
+            devOpsOptions.Value.AzureDevOps.AccessToken = ado.AccessToken;
+            devOpsOptions.Value.AzureDevOps.DefaultCollection = ado.DefaultCollection;
+            _logger.LogInformation("✅ ADO integration settings restored from persisted file. Server: {Url}", ado.ServerUrl);
+        }
+    }
+
+    private static void PersistGitHubSettings(GitHubSettingsPayload request, ILogger logger)
+    {
+        try
+        {
+            lock (_settingsLock)
+            {
+                var saved = LoadPersistedSettingsLocked();
+                if (!string.IsNullOrWhiteSpace(request.AccessToken)) saved.GitHubToken = request.AccessToken;
+                if (!string.IsNullOrWhiteSpace(request.Organization)) saved.GitHubOrganization = request.Organization;
+                WritePersistedSettings(saved);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Non-fatal: could not persist GitHub settings to file");
+        }
+    }
+
+    private static void PersistAdoSettings(AdoSettingsPayload request, ILogger logger)
+    {
+        try
+        {
+            lock (_settingsLock)
+            {
+                var saved = LoadPersistedSettingsLocked();
+                if (!string.IsNullOrWhiteSpace(request.ServerUrl)) saved.AdoServerUrl = request.ServerUrl;
+                if (!string.IsNullOrWhiteSpace(request.AccessToken)) saved.AdoAccessToken = request.AccessToken;
+                if (!string.IsNullOrWhiteSpace(request.ServerType)) saved.AdoServerType = request.ServerType;
+                if (!string.IsNullOrWhiteSpace(request.Collection)) saved.AdoCollection = request.Collection;
+                WritePersistedSettings(saved);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Non-fatal: could not persist ADO settings to file");
+        }
+    }
+
+    private static PersistedSettings LoadPersistedSettingsLocked()
+    {
+        if (!File.Exists(_integrationSettingsPath)) return new PersistedSettings();
+        try
+        {
+            var json = File.ReadAllText(_integrationSettingsPath);
+            return JsonSerializer.Deserialize<PersistedSettings>(json, _persistJsonOptions) ?? new PersistedSettings();
+        }
+        catch { return new PersistedSettings(); }
+    }
+
+    private static void WritePersistedSettings(PersistedSettings settings)
+    {
+        var dir = Path.GetDirectoryName(_integrationSettingsPath);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        File.WriteAllText(_integrationSettingsPath,
+            JsonSerializer.Serialize(settings, _persistJsonOptions));
+    }
+
+    private sealed class PersistedSettings
+    {
+        public string? GitHubToken { get; set; }
+        public string? GitHubOrganization { get; set; }
+        public string? AdoServerUrl { get; set; }
+        public string? AdoAccessToken { get; set; }
+        public string? AdoServerType { get; set; }
+        public string? AdoCollection { get; set; }
+    }
+
+    #endregion
 }
 
 // Generic request model

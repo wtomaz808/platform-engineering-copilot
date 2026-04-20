@@ -166,5 +166,5 @@ public class AzureDevOpsGatewayOptions
     /// <summary>
     /// Whether Azure DevOps integration is enabled
     /// </summary>
-    public bool Enabled { get; set; }
+    public bool Enabled { get; set; } = true;
 }

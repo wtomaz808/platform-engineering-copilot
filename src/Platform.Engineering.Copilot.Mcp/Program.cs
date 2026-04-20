@@ -458,6 +458,10 @@ class Program
         var httpBridge = app.Services.GetRequiredService<McpHttpBridge>();
         httpBridge.MapHttpEndpoints(app);
 
+        // Restore GitHub/ADO integration settings saved by Admin UI in a previous session.
+        // Without this, container restarts lose any credentials applied at runtime.
+        httpBridge.LoadPersistedIntegrationSettings(app.Services);
+
         Log.Information("✅ MCP HTTP server ready on http://localhost:{Port}", port);
         await app.RunAsync();
     }
