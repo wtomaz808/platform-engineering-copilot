@@ -22,6 +22,9 @@ type ChatAction =
   | { type: 'ADD_MESSAGE'; payload: ChatMessage }
   | { type: 'UPDATE_MESSAGE'; payload: ChatMessage }
   | { type: 'REMOVE_PROCESSING'; payload: string }  // conversationId
+  | { type: 'START_STREAM'; payload: { messageId: string; conversationId: string } }
+  | { type: 'APPEND_STREAM_CHUNK'; payload: { messageId: string; text: string } }
+  | { type: 'UPSERT_MESSAGE'; payload: ChatMessage }
   | { type: 'SET_CONNECTED'; payload: boolean }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
@@ -54,6 +57,41 @@ const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
           m => !(m.conversationId === action.payload && (m.status as string) === 'Processing')
         ),
       };
+    case 'START_STREAM': {
+      // Remove any existing 'Processing' placeholder and add a new streaming message
+      const filtered = state.messages.filter(
+        m => !(m.conversationId === action.payload.conversationId && (m.status as string) === 'Processing')
+      );
+      const streamMsg: ChatMessage = {
+        id: action.payload.messageId,
+        conversationId: action.payload.conversationId,
+        content: '',
+        role: 'Assistant' as any,
+        timestamp: new Date().toISOString(),
+        status: 'Streaming' as any,
+        attachments: [],
+        tools: [],
+      };
+      return { ...state, messages: [...filtered, streamMsg] };
+    }
+    case 'APPEND_STREAM_CHUNK':
+      return {
+        ...state,
+        messages: state.messages.map(msg =>
+          msg.id === action.payload.messageId
+            ? { ...msg, content: msg.content + action.payload.text }
+            : msg
+        ),
+      };
+    case 'UPSERT_MESSAGE': {
+      const idx = state.messages.findIndex(m => m.id === action.payload.id);
+      if (idx >= 0) {
+        const updated = [...state.messages];
+        updated[idx] = action.payload;
+        return { ...state, messages: updated };
+      }
+      return { ...state, messages: [...state.messages, action.payload] };
+    }
     case 'UPDATE_MESSAGE':
       return {
         ...state,
@@ -125,14 +163,24 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Set up event handlers before starting
         connection.on('MessageReceived', (message: ChatMessage) => {
           console.log('📨 Received message via SignalR:', message);
-          // Remove any "Processing your request..." placeholder for this conversation
+          // Remove any "Processing your request..." placeholder
           dispatch({ type: 'REMOVE_PROCESSING', payload: message.conversationId });
-          // Attach model attribution if we tracked one for this conversation
+          // Attach model attribution if tracked
           const model = pendingModelRef.current.get(message.conversationId);
           const augmented = model
             ? { ...message, metadata: { ...(message.metadata ?? {}), model } }
             : message;
-          dispatch({ type: 'ADD_MESSAGE', payload: augmented });
+          // Replace streaming/existing message or add new
+          dispatch({ type: 'UPSERT_MESSAGE', payload: augmented });
+        });
+
+        connection.on('StreamStarted', (data: { messageId: string; conversationId: string }) => {
+          console.log('🟢 Stream started:', data);
+          dispatch({ type: 'START_STREAM', payload: data });
+        });
+
+        connection.on('StreamChunk', (data: { messageId: string; conversationId: string; text: string }) => {
+          dispatch({ type: 'APPEND_STREAM_CHUNK', payload: { messageId: data.messageId, text: data.text } });
         });
 
         connection.on('MessageProcessing', (data: { conversationId: string; message: string }) => {

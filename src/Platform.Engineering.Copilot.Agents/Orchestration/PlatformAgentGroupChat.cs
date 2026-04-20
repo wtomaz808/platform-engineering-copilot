@@ -217,6 +217,63 @@ public class PlatformAgentGroupChat
     }
 
     /// <summary>
+    /// Stream the response token-by-token for the selected agent.
+    /// Runs agent selection and any tool-call rounds first, then streams the final answer.
+    /// </summary>
+    public async IAsyncEnumerable<string> ProcessStreamingAsync(
+        string userMessage,
+        AgentConversationContext context,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🎼 Streaming: {Message}", userMessage);
+
+        // Load/create conversation state and store user message (same as non-streaming path)
+        var conversationState = await _conversationStateManager.GetOrCreateAsync(context.ConversationId, cancellationToken);
+        await _conversationStateManager.AddMessageAsync(
+            context.ConversationId,
+            new ConversationMessage { Role = MessageRole.User, Content = userMessage, Timestamp = DateTime.UtcNow },
+            cancellationToken);
+
+        await _channelManager.SendToConversationAsync(
+            context.ConversationId,
+            new ChannelMessage { ConversationId = context.ConversationId, Type = MessageType.AgentThinking, Content = "Analyzing your request..." },
+            cancellationToken);
+
+        // Select agent (may make an LLM call for complex queries)
+        context.AddMessage(userMessage, true);
+        var selectedAgent = await _selectionStrategy.SelectAgentAsync(_agents.Values.ToList(), userMessage, context, cancellationToken);
+        if (selectedAgent == null)
+        {
+            _logger.LogWarning("No agent selected for streaming");
+            yield break;
+        }
+
+        _logger.LogInformation("🤖 Streaming with agent: {AgentName}", selectedAgent.AgentName);
+
+        conversationState.ActiveAgentType = selectedAgent.AgentName;
+        await _conversationStateManager.SaveAsync(conversationState, cancellationToken);
+
+        await _channelManager.SendToConversationAsync(
+            context.ConversationId,
+            new ChannelMessage { ConversationId = context.ConversationId, Type = MessageType.ProgressUpdate, Content = $"Routing to {selectedAgent.AgentName}...", AgentType = selectedAgent.AgentName },
+            cancellationToken);
+
+        // Stream the agent's response token-by-token
+        var fullResponse = new StringBuilder();
+        await foreach (var chunk in selectedAgent.ProcessStreamingAsync(context, cancellationToken))
+        {
+            fullResponse.Append(chunk);
+            yield return chunk;
+        }
+
+        // Persist the assistant message and update state after streaming
+        await _conversationStateManager.AddMessageAsync(
+            context.ConversationId,
+            new ConversationMessage { Role = MessageRole.Assistant, Content = fullResponse.ToString(), AgentType = selectedAgent.AgentName, Timestamp = DateTime.UtcNow },
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Get a specific agent by name
     /// </summary>
     public BaseAgent? GetAgent(string name)

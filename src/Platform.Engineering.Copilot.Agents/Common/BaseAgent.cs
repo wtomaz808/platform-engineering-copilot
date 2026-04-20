@@ -47,7 +47,7 @@ public abstract class BaseAgent
     /// Maximum tokens for LLM responses.
     /// Override in derived agents to use configured values.
     /// </summary>
-    protected virtual int MaxTokens => 4000;
+    protected virtual int MaxTokens => 2048;
 
     protected BaseAgent(IChatClient chatClient, ILogger logger)
         : this(chatClient, logger, null, null)
@@ -214,6 +214,66 @@ public abstract class BaseAgent
     }
 
     /// <summary>
+    /// Process a conversation context and stream the response token-by-token.
+    /// Handles tool calling rounds fully before streaming the final answer.
+    /// </summary>
+    public virtual async IAsyncEnumerable<string> ProcessStreamingAsync(
+        AgentConversationContext context,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var userMessage = context.MessageHistory.LastOrDefault(m => m.IsUser)?.Content ?? "";
+        Logger.LogInformation("🤖 {AgentName} streaming: {Message}",
+            AgentName, userMessage.Length > 50 ? userMessage[..50] + "..." : userMessage);
+
+        var messages = BuildChatMessages(context);
+        var toolsExecuted = new List<ToolExecutionResult>();
+
+        var options = new ChatOptions
+        {
+            Temperature = Temperature,
+            MaxOutputTokens = MaxTokens,
+            ToolMode = ToolMode
+        };
+        if (RegisteredTools.Any())
+        {
+            options.Tools = RegisteredTools.Select(t => t.AsAITool()).ToList();
+        }
+
+        // Execute tool-calling rounds first (blocking), then stream the final answer
+        var round = 0;
+        while (round < MaxToolRounds - 1)
+        {
+            round++;
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var response = await ChatClient.GetResponseAsync(messages, options, cancellationToken);
+            var lastMessage = response.Messages.LastOrDefault();
+            if (lastMessage?.Contents == null) break;
+
+            var hasToolCalls = lastMessage.Contents.OfType<FunctionCallContent>().Any();
+            if (!hasToolCalls) break;
+
+            Logger.LogDebug("Streaming: tool execution round {Round}", round);
+            var toolCallResults = await ExecuteToolCallsAsync(lastMessage, context.ConversationId, toolsExecuted, cancellationToken);
+            if (!toolCallResults.Any()) break;
+
+            messages.AddRange(response.Messages);
+            messages.AddRange(toolCallResults);
+        }
+
+        // Disable tools for final streaming call so we get pure text back
+        options.Tools = null;
+        options.ToolMode = ChatToolMode.None;
+
+        await foreach (var update in ChatClient.GetStreamingResponseAsync(messages, options, cancellationToken))
+        {
+            var text = update.Text;
+            if (!string.IsNullOrEmpty(text))
+                yield return text;
+        }
+    }
+
+    /// <summary>
     /// Get the system prompt for this agent
     /// </summary>
     protected abstract string GetSystemPrompt();
@@ -228,8 +288,8 @@ public abstract class BaseAgent
             new(ChatRole.System, GetSystemPrompt())
         };
 
-        // Add conversation history
-        foreach (var msg in context.MessageHistory.TakeLast(20))
+        // Add conversation history (capped to last 10 for latency/token budget)
+        foreach (var msg in context.MessageHistory.TakeLast(10))
         {
             var role = msg.IsUser ? ChatRole.User : ChatRole.Assistant;
             messages.Add(new ChatMessage(role, msg.Content));

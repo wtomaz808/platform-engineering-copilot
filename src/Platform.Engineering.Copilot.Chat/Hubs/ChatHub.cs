@@ -37,7 +37,8 @@ public class ChatHub : Hub
     }
 
     /// <summary>
-    /// Send a message to a conversation
+    /// Send a message to a conversation - uses SSE streaming internally so tokens
+    /// appear progressively in the browser via StreamStarted/StreamChunk events.
     /// </summary>
     public async Task SendMessage(ChatRequest request)
     {
@@ -49,10 +50,11 @@ public class ChatHub : Hub
             await Clients.Group($"conversation-{request.ConversationId}")
                 .SendAsync("MessageProcessing", new { conversationId = request.ConversationId, message = request.Message });
 
-            // Process the message
-            var response = await _chatService.SendMessageAsync(request);
+            // Process via streaming path — StreamStarted/StreamChunk events are pushed
+            // to the group from ChatService as tokens arrive from the MCP server.
+            var response = await _chatService.SendMessageStreamingAsync(request);
 
-            // Send the response to all clients in the conversation
+            // Send the final complete message so the UI can switch from streaming to final state
             await Clients.Group($"conversation-{request.ConversationId}")
                 .SendAsync("MessageReceived", response);
 

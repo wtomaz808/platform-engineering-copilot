@@ -291,7 +291,7 @@ public class AzureOpenAIOptions
     /// Maximum tokens for chat completion requests
     /// </summary>
     [Range(1, 128000)]
-    public int MaxTokens { get; set; } = 4000;
+    public int MaxTokens { get; set; } = 2048;
 
     /// <summary>
     /// Temperature for AI responses (0.0 - 2.0)

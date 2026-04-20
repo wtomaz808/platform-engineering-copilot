@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using Platform.Engineering.Copilot.Chat.App.Data;
+using Platform.Engineering.Copilot.Chat.App.Hubs;
 using Platform.Engineering.Copilot.Chat.App.Models;
 using System.Text.Json;
 using System.Text;
@@ -15,6 +17,7 @@ public interface IChatService
     Task<Conversation?> GetConversationAsync(string conversationId);
     Task<List<Conversation>> GetConversationsAsync(string userId = "default-user", int skip = 0, int take = 50);
     Task<ChatMessage> SendMessageAsync(ChatRequest request);
+    Task<ChatMessage> SendMessageStreamingAsync(ChatRequest request);
     Task<List<ChatMessage>> GetMessagesAsync(string conversationId, int skip = 0, int take = 50);
     Task<MessageAttachment> UploadAttachmentAsync(string messageId, IFormFile file);
     Task<ConversationContext?> GetContextAsync(string conversationId, string? type = null);
@@ -33,6 +36,7 @@ public class ChatService : IChatService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ChatService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly IHubContext<ChatHub> _hubContext;
     private readonly string _mcpBaseUrl;
     private readonly string _uploadsPath;
 
@@ -40,12 +44,14 @@ public class ChatService : IChatService
         ChatDbContext dbContext,
         IHttpClientFactory httpClientFactory,
         ILogger<ChatService> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHubContext<ChatHub> hubContext)
     {
         _dbContext = dbContext;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
         _configuration = configuration;
+        _hubContext = hubContext;
         // Check environment variable first, then config, then default
         _mcpBaseUrl = System.Environment.GetEnvironmentVariable("MCP_SERVER_URL") 
             ?? configuration["McpServer:BaseUrl"] 
@@ -143,6 +149,145 @@ public class ChatService : IChatService
             .Skip(skip)
             .Take(take)
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// Process a message and stream chunks to the conversation's SignalR group.
+    /// Pushes StreamChunk events for each token and returns the final ChatMessage.
+    /// </summary>
+    public async Task<ChatMessage> SendMessageStreamingAsync(ChatRequest request)
+    {
+        _logger.LogInformation("Streaming message in conversation: {ConversationId}", request.ConversationId);
+
+        var conversation = await GetConversationAsync(request.ConversationId);
+        if (conversation == null)
+        {
+            conversation = await CreateConversationAsync("Chat Session", "default-user");
+            request.ConversationId = conversation.Id;
+        }
+
+        var userMessage = new ChatMessage
+        {
+            Id = Guid.NewGuid().ToString(),
+            ConversationId = request.ConversationId,
+            Content = request.Message,
+            Role = MessageRole.User,
+            Timestamp = DateTime.UtcNow,
+            Status = MessageStatus.Sent
+        };
+
+        _dbContext.Messages.Add(userMessage);
+        await _dbContext.SaveChangesAsync();
+
+        // Create the assistant message placeholder (Processing status)
+        var assistantMessage = new ChatMessage
+        {
+            Id = Guid.NewGuid().ToString(),
+            ConversationId = request.ConversationId,
+            Role = MessageRole.Assistant,
+            Timestamp = DateTime.UtcNow,
+            Status = MessageStatus.Processing,
+            ParentMessageId = userMessage.Id
+        };
+        _dbContext.Messages.Add(assistantMessage);
+        await _dbContext.SaveChangesAsync();
+
+        // Notify the client that streaming is starting with the real message ID
+        await _hubContext.Clients.Group($"conversation-{request.ConversationId}")
+            .SendAsync("StreamStarted", new { messageId = assistantMessage.Id, conversationId = request.ConversationId });
+
+        try
+        {
+            var responseText = new StringBuilder();
+            await CallIntelligentChatStreamAsync(
+                request.Message,
+                request.ConversationId,
+                await BuildHistoryAsync(conversation.Id, userMessage.Id),
+                async (chunk) =>
+                {
+                    responseText.Append(chunk);
+                    await _hubContext.Clients.Group($"conversation-{request.ConversationId}")
+                        .SendAsync("StreamChunk", new { messageId = assistantMessage.Id, conversationId = request.ConversationId, text = chunk });
+                });
+
+            assistantMessage.Content = responseText.ToString();
+            assistantMessage.Status = MessageStatus.Completed;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during streaming for message: {MessageId}", assistantMessage.Id);
+            assistantMessage.Content = "I encountered an error processing your request. Please try again.";
+            assistantMessage.Status = MessageStatus.Error;
+        }
+
+        conversation.UpdatedAt = DateTime.UtcNow;
+        if (conversation.Messages.Count <= 2)
+            conversation.Title = GenerateConversationTitle(request.Message);
+
+        await _dbContext.SaveChangesAsync();
+        return assistantMessage;
+    }
+
+    private async Task<List<object>> BuildHistoryAsync(string conversationId, string excludeMessageId)
+    {
+        var previousMessages = await _dbContext.Messages
+            .Where(m => m.ConversationId == conversationId && m.Id != excludeMessageId)
+            .OrderByDescending(m => m.Timestamp)
+            .Take(10)
+            .OrderBy(m => m.Timestamp)
+            .Select(m => new { role = m.Role == MessageRole.User ? "user" : "assistant", content = m.Content })
+            .ToListAsync();
+        return previousMessages.Cast<object>().ToList();
+    }
+
+    private async Task CallIntelligentChatStreamAsync(string message, string conversationId, List<object> history, Func<string, Task> onChunk)
+    {
+        using var httpClient = _httpClientFactory.CreateClient();
+        httpClient.BaseAddress = new Uri(_mcpBaseUrl);
+        httpClient.Timeout = TimeSpan.FromSeconds(180);
+
+        var requestBody = new { message, conversationId, history };
+        var json = JsonSerializer.Serialize(requestBody);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/mcp/chat/stream")
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+
+        using var response = await httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        using var stream = await response.Content.ReadAsStreamAsync();
+        using var reader = new System.IO.StreamReader(stream);
+
+        while (!reader.EndOfStream)
+        {
+            var line = await reader.ReadLineAsync();
+            if (line == null) break;
+            if (!line.StartsWith("data: ")) continue;
+
+            var data = line[6..]; // strip "data: "
+            if (data == "{\"done\":true}") break;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(data);
+                if (doc.RootElement.TryGetProperty("text", out var textEl))
+                {
+                    var text = textEl.GetString();
+                    if (!string.IsNullOrEmpty(text))
+                        await onChunk(text);
+                }
+                else if (doc.RootElement.TryGetProperty("error", out var errEl))
+                {
+                    _logger.LogError("Stream error from MCP: {Error}", errEl.GetString());
+                    break;
+                }
+            }
+            catch (JsonException)
+            {
+                _logger.LogWarning("Could not parse SSE line: {Line}", data);
+            }
+        }
     }
 
     public async Task<MessageAttachment> UploadAttachmentAsync(string messageId, IFormFile file)
@@ -306,7 +451,7 @@ public class ChatService : IChatService
             var previousMessages = await _dbContext.Messages
                 .Where(m => m.ConversationId == conversation.Id && m.Id != userMessage.Id)
                 .OrderByDescending(m => m.Timestamp)
-                .Take(20)
+                .Take(10)
                 .OrderBy(m => m.Timestamp) // Re-order chronologically
                 .Select(m => new { role = m.Role == MessageRole.User ? "user" : "assistant", content = m.Content })
                 .ToListAsync();

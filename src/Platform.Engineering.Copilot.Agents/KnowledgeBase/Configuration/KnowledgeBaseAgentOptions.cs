@@ -35,7 +35,7 @@ public class KnowledgeBaseAgentOptions
     /// Maximum tokens for completion response
     /// </summary>
     [Range(1, 128000)]
-    public int MaxTokens { get; set; } = 4000;
+    public int MaxTokens { get; set; } = 2048;
 
     /// <summary>
     /// Temperature for LLM responses (0.0 = deterministic, 1.0 = creative)

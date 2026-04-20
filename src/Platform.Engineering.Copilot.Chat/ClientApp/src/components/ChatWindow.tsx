@@ -276,6 +276,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 >
                   {message.content}
                 </ReactMarkdown>
+                {(message.status as string) === 'Streaming' && (
+                  <span className="inline-block w-2 h-4 ml-0.5 bg-gray-500 animate-pulse align-middle" />
+                )}
               </div>
               
               {message.attachments && message.attachments.length > 0 && (
@@ -432,7 +435,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       </span>
                     )}
                   </div>
-                  {(message.status as string) !== 'Processing' && (
+                  {(message.status as string) !== 'Processing' && (message.status as string) !== 'Streaming' && (
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleCopy(message.id, message.content)}

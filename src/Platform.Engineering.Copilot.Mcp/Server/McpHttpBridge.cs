@@ -217,6 +217,76 @@ public class McpHttpBridge
             }
         });
 
+        // SSE streaming endpoint — returns tokens as they are generated
+        app.MapPost("/mcp/chat/stream", async (HttpContext context, McpServer mcpServer) =>
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<McpHttpBridge>>();
+
+            try
+            {
+                var requestBody = await JsonSerializer.DeserializeAsync<ChatRequest>(
+                    context.Request.Body,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (requestBody == null || string.IsNullOrEmpty(requestBody.Message))
+                {
+                    context.Response.StatusCode = 400;
+                    await context.Response.WriteAsJsonAsync(new { error = "Message is required" });
+                    return;
+                }
+
+                List<(string Role, string Content)>? history = null;
+                if (requestBody.History?.Count > 0)
+                {
+                    history = requestBody.History.Select(h => (h.Role, h.Content)).ToList();
+                }
+
+                context.Response.ContentType = "text/event-stream";
+                context.Response.Headers.CacheControl = "no-cache";
+                context.Response.Headers.Connection = "keep-alive";
+
+                logger.LogInformation("📡 Starting SSE stream | ConvId: {ConvId}", requestBody.ConversationId ?? "new");
+
+                await foreach (var chunk in mcpServer.ProcessChatStreamAsync(
+                    requestBody.Message,
+                    requestBody.ConversationId,
+                    requestBody.Context,
+                    history,
+                    context.RequestAborted))
+                {
+                    var sseData = System.Text.Json.JsonSerializer.Serialize(new { text = chunk });
+                    await context.Response.WriteAsync($"data: {sseData}\n\n", context.RequestAborted);
+                    await context.Response.Body.FlushAsync(context.RequestAborted);
+                }
+
+                // Signal end of stream
+                await context.Response.WriteAsync("data: {\"done\":true}\n\n", context.RequestAborted);
+                await context.Response.Body.FlushAsync(context.RequestAborted);
+
+                logger.LogInformation("✅ SSE stream complete | ConvId: {ConvId}", requestBody.ConversationId ?? "new");
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("SSE stream cancelled by client");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "❌ Error in SSE stream handler");
+                if (!context.Response.HasStarted)
+                {
+                    context.Response.StatusCode = 500;
+                    await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+                }
+                else
+                {
+                    // Stream already started — send error as a final SSE event
+                    var errorData = System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message, done = true });
+                    await context.Response.WriteAsync($"data: {errorData}\n\n");
+                    await context.Response.Body.FlushAsync();
+                }
+            }
+        });
+
         // Health check
         app.MapGet("/health", () => Results.Ok(new 
         { 

@@ -25,7 +25,7 @@ public class EnvironmentAgentOptions
     /// Maximum tokens for AI model responses.
     /// </summary>
     [Range(100, 128000)]
-    public int MaxTokens { get; set; } = 4000;
+    public int MaxTokens { get; set; } = 2048;
 
     /// <summary>
     /// Enable drift detection for deployed environments.

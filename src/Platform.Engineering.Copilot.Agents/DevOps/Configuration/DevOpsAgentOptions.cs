@@ -9,7 +9,7 @@ public class DevOpsAgentOptions
     
     public bool Enabled { get; set; } = true;
     public double Temperature { get; set; } = 0.3;
-    public int MaxTokens { get; set; } = 4000;
+    public int MaxTokens { get; set; } = 2048;
     
     public GitHubOptions GitHub { get; set; } = new();
     public AzureDevOpsOptions AzureDevOps { get; set; } = new();

@@ -70,6 +70,7 @@ export enum MessageStatus {
   Sending = 'Sending',
   Sent = 'Sent',
   Processing = 'Processing',
+  Streaming = 'Streaming',
   Completed = 'Completed',
   Error = 'Error',
   Retry = 'Retry'

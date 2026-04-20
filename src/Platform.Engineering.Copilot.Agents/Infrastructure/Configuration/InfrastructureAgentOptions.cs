@@ -27,7 +27,7 @@ public class InfrastructureAgentOptions
     /// Default: 8000 (sufficient for complex infrastructure templates).
     /// </summary>
     [Range(1, 128000)]
-    public int MaxTokens { get; set; } = 8000;
+    public int MaxTokens { get; set; } = 4000;
 
     /// <summary>
     /// Default Azure region for resource provisioning.

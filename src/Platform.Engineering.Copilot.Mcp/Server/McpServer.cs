@@ -130,6 +130,45 @@ public class McpServer
     }
 
     /// <summary>
+    /// Stream a chat request token-by-token through the multi-agent orchestrator.
+    /// Used by McpHttpBridge for SSE streaming.
+    /// </summary>
+    public async IAsyncEnumerable<string> ProcessChatStreamAsync(
+        string message,
+        string? conversationId = null,
+        Dictionary<string, object>? context = null,
+        List<(string Role, string Content)>? conversationHistory = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        conversationId ??= Guid.NewGuid().ToString();
+
+        _logger.LogInformation("📨 Streaming chat request via McpServer | ConvId: {ConvId}", conversationId);
+
+        var agentContext = new AgentConversationContext
+        {
+            ConversationId = conversationId,
+            UserId = "mcp-user"
+        };
+
+        if (conversationHistory != null)
+        {
+            foreach (var (role, content) in conversationHistory)
+                agentContext.AddMessage(content, isUser: role.Equals("user", StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (context != null)
+        {
+            foreach (var kvp in context)
+                agentContext.WorkflowState[kvp.Key] = kvp.Value;
+        }
+
+        await foreach (var chunk in _agentGroupChat.ProcessStreamingAsync(message, agentContext, cancellationToken))
+        {
+            yield return chunk;
+        }
+    }
+
+    /// <summary>
     /// Start the MCP server in stdio mode
     /// </summary>
     public async Task StartAsync()
